@@ -231,7 +231,7 @@
       <h3>📊 文件夹库存总览</h3>
       <table class="overview-table">
         <thead>
-          <tr><th>文件夹</th><th>容器数量</th><th>样本总管数</th></tr>
+          <tr><th>文件夹</th><th>物品名称</th><th>数量</th></tr>
         </thead>
         <tbody id="overview-body"></tbody>
       </table>
@@ -306,7 +306,16 @@
       e.stopPropagation();
       if (id === 'default') return alert('默认位置不可删除。');
       const related = Object.values(db.boxes).filter(b => b.folderId === id).length;
-      if (related > 0) return alert('该文件夹下仍有容器，请先移动或删除这些容器。');
+      if (related > 0) {
+        const target = prompt(`该文件夹下有 ${related} 个容器。\n请输入要迁移到的目标文件夹名称（留空取消）：`, db.folders.default?.name || '默认位置');
+        if (!target) return;
+        const targetId = Object.keys(db.folders).find(fid => db.folders[fid].name === target.trim());
+        if (!targetId) return alert('未找到目标文件夹名称，请重试。');
+        if (targetId === id) return alert('目标文件夹不能和待删除文件夹相同。');
+        Object.values(db.boxes).forEach(box => {
+          if (box.folderId === id) box.folderId = targetId;
+        });
+      }
       if (!confirm(`确定删除文件夹【${db.folders[id].name}】吗？`)) return;
       delete db.folders[id];
       if (currentFolderId === id) currentFolderId = 'all';
@@ -364,6 +373,27 @@
       updateOverview();
     }
 
+    function moveBoxFolder(id, e) {
+      e.stopPropagation();
+      const box = db.boxes[id];
+      if (!box) return;
+      const options = Object.keys(db.folders)
+        .map((fid, idx) => `${idx + 1}. ${db.folders[fid].name}${fid === box.folderId ? '（当前）' : ''}`)
+        .join('\n');
+      const input = prompt(`请选择目标文件夹序号：\n${options}`);
+      if (!input) return;
+      const n = Number(input);
+      const folderIds = Object.keys(db.folders);
+      if (!Number.isInteger(n) || n < 1 || n > folderIds.length) return alert('输入序号无效。');
+      const targetId = folderIds[n - 1];
+      if (targetId === box.folderId) return;
+      box.folderId = targetId;
+      save();
+      renderFolderList();
+      renderBoxList();
+      updateOverview();
+    }
+
     function deleteBox(id, e) {
       e.stopPropagation();
       if (!confirm(`确定删除容器【${db.boxes[id].name}】及其内所有样本吗？`)) return;
@@ -395,7 +425,10 @@
         div.className = `item ${id === currentBoxId ? 'active' : ''}`;
         div.innerHTML = `
           <div class="item-info">${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>
-          <button class="mini-btn danger" onclick="deleteBox('${id}',event)">✕</button>
+          <div>
+            <button class="mini-btn" title="移动到其他文件夹" onclick="moveBoxFolder('${id}',event)">📁</button>
+            <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${id}',event)">✕</button>
+          </div>
         `;
         div.onclick = () => { searchHighlightPos = null; switchBox(id); };
         list.appendChild(div);
@@ -603,12 +636,26 @@
 
     function updateOverview() {
       const body = document.getElementById('overview-body');
-      const rows = Object.keys(db.folders).map(fid => {
+      const rows = [];
+      Object.keys(db.folders).forEach(fid => {
         const folderName = db.folders[fid].name;
         const boxes = Object.values(db.boxes).filter(b => b.folderId === fid);
-        let vialCount = 0;
-        boxes.forEach(b => { vialCount += Object.keys(b.vials).length; });
-        return `<tr><td>${folderName}</td><td>${boxes.length}</td><td>${vialCount}</td></tr>`;
+        const counts = {};
+        boxes.forEach(b => {
+          Object.values(b.vials).forEach(v => {
+            if (!v.name) return;
+            counts[v.name] = (counts[v.name] || 0) + 1;
+          });
+        });
+        const names = Object.keys(counts);
+        if (!names.length) {
+          rows.push(`<tr><td>${folderName}</td><td>（无样本）</td><td>0</td></tr>`);
+          return;
+        }
+        names.sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-CN'));
+        names.forEach(name => {
+          rows.push(`<tr><td>${folderName}</td><td>${name}</td><td>${counts[name]}</td></tr>`);
+        });
       });
       body.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="3">暂无数据</td></tr>';
     }
@@ -628,11 +675,24 @@
         });
       });
 
-      const summary = Object.keys(db.folders).map(fid => {
+      const summary = [];
+      Object.keys(db.folders).forEach(fid => {
+        const folderName = db.folders[fid].name;
         const boxes = Object.values(db.boxes).filter(b => b.folderId === fid);
-        let cnt = 0;
-        boxes.forEach(b => { cnt += Object.keys(b.vials).length; });
-        return { 文件夹: db.folders[fid].name, 容器数量: boxes.length, 样本总管数: cnt };
+        const counts = {};
+        boxes.forEach(b => {
+          Object.values(b.vials).forEach(v => {
+            if (!v.name) return;
+            counts[v.name] = (counts[v.name] || 0) + 1;
+          });
+        });
+        const names = Object.keys(counts);
+        if (!names.length) {
+          summary.push({ 文件夹: folderName, 物品名称: '（无样本）', 数量: 0 });
+          return;
+        }
+        names.sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-CN'));
+        names.forEach(name => summary.push({ 文件夹: folderName, 物品名称: name, 数量: counts[name] }));
       });
 
       if (typeof XLSX !== 'undefined') {
