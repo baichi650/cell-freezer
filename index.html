@@ -38,6 +38,36 @@
     .list { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 8px; overflow: auto; }
     .folder-list { max-height: 200px; }
     .box-list { flex: 1; min-height: 180px; }
+    .folder-strip {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 2px 0 8px;
+      scrollbar-width: thin;
+    }
+    .folder-chip {
+      flex: 0 0 auto;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #d9d9d9;
+      cursor: pointer;
+      white-space: nowrap;
+      background: rgba(255,255,255,.04);
+    }
+    .folder-chip.active { color: #fff; border-color: currentColor; box-shadow: 0 0 0 1px rgba(255,255,255,.25) inset; }
+    .folder-chip.all.active { color: #69c0ff; }
+    .box-group-title {
+      font-size: 12px;
+      margin: 8px 0 6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
     .item {
       padding: 8px 10px;
       border-radius: 6px;
@@ -53,6 +83,7 @@
     }
     .item:hover { border-color: #6f6f6f; }
     .item.active { background: var(--primary); border-color: #69c0ff; }
+    .item.folder-item, .item.box-item { border-left: 4px solid transparent; }
     .item-info { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .item-tag { font-size: 10px; opacity: .7; margin-left: 5px; }
     .mini-btn {
@@ -168,6 +199,7 @@
     </div>
 
     <div class="section-title">容器列表</div>
+    <div id="box-folder-strip" class="folder-strip"></div>
     <div id="box-list" class="list box-list"></div>
 
     <div style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px;">
@@ -271,10 +303,26 @@
       normalizeData();
       renderFolderOptions();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       updateWarningBoard();
       updateOverview();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
+    }
+
+    function getFolderColor(folderId) {
+      const palette = ['#1677ff', '#13c2c2', '#722ed1', '#eb2f96', '#fa8c16', '#52c41a', '#2f54eb', '#f5222d'];
+      if (!folderId || folderId === 'all') return '#69c0ff';
+      let hash = 0;
+      for (let i = 0; i < folderId.length; i++) hash = folderId.charCodeAt(i) + ((hash << 5) - hash);
+      return palette[Math.abs(hash) % palette.length];
+    }
+
+    function setFolderFilter(folderId) {
+      currentFolderId = folderId;
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
     }
 
     function addFolder() {
@@ -286,6 +334,7 @@
       save();
       renderFolderOptions();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       updateOverview();
     }
@@ -298,6 +347,7 @@
       save();
       renderFolderOptions();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       updateOverview();
     }
@@ -307,7 +357,8 @@
       if (id === 'default') return alert('默认位置不可删除。');
       const related = Object.values(db.boxes).filter(b => b.folderId === id).length;
       if (related > 0) {
-        const target = prompt(`该文件夹下有 ${related} 个容器。\n请输入要迁移到的目标文件夹名称（留空取消）：`, db.folders.default?.name || '默认位置');
+        const target = prompt(`该文件夹下有 ${related} 个容器。
+请输入要迁移到的目标文件夹名称（留空取消）：`, db.folders.default?.name || '默认位置');
         if (!target) return;
         const targetId = Object.keys(db.folders).find(fid => db.folders[fid].name === target.trim());
         if (!targetId) return alert('未找到目标文件夹名称，请重试。');
@@ -322,6 +373,7 @@
       save();
       renderFolderOptions();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       updateOverview();
     }
@@ -339,14 +391,15 @@
       const allItem = document.createElement('div');
       allItem.className = `item ${currentFolderId === 'all' ? 'active' : ''}`;
       allItem.innerHTML = `<div class="item-info">全部文件夹</div><div class="item-tag">${totalBoxes}</div>`;
-      allItem.onclick = () => { currentFolderId = 'all'; renderFolderList(); renderBoxList(); };
+      allItem.onclick = () => setFolderFilter('all');
       list.appendChild(allItem);
 
       Object.keys(db.folders).forEach(id => {
         const folder = db.folders[id];
         const count = Object.values(db.boxes).filter(b => b.folderId === id).length;
         const div = document.createElement('div');
-        div.className = `item ${currentFolderId === id ? 'active' : ''}`;
+        div.className = `item folder-item ${currentFolderId === id ? 'active' : ''}`;
+        div.style.borderLeftColor = getFolderColor(id);
         div.innerHTML = `
           <div class="item-info">${folder.name}<span class="item-tag">${count}</span></div>
           <div>
@@ -354,9 +407,18 @@
             <button class="mini-btn danger" title="删除" onclick="deleteFolder('${id}',event)">🗑</button>
           </div>
         `;
-        div.onclick = () => { currentFolderId = id; renderFolderList(); renderBoxList(); };
+        div.onclick = () => setFolderFilter(id);
         list.appendChild(div);
       });
+    }
+
+    function renderBoxFolderStrip() {
+      const strip = document.getElementById('box-folder-strip');
+      const folderIds = Object.keys(db.folders);
+      strip.innerHTML = [
+        `<div class="folder-chip all ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部</div>`,
+        ...folderIds.map(fid => `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${db.folders[fid].name}</div>`)
+      ].join('');
     }
 
     function addBox() {
@@ -368,6 +430,7 @@
       db.boxes[id] = { name: name.trim(), rows, cols, folderId, vials: {} };
       save();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       switchBox(id);
       updateOverview();
@@ -380,7 +443,8 @@
       const options = Object.keys(db.folders)
         .map((fid, idx) => `${idx + 1}. ${db.folders[fid].name}${fid === box.folderId ? '（当前）' : ''}`)
         .join('\n');
-      const input = prompt(`请选择目标文件夹序号：\n${options}`);
+      const input = prompt(`请选择目标文件夹序号：
+${options}`);
       if (!input) return;
       const n = Number(input);
       const folderIds = Object.keys(db.folders);
@@ -390,6 +454,7 @@
       box.folderId = targetId;
       save();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       updateOverview();
     }
@@ -406,6 +471,7 @@
       selectedPositions.clear();
       save();
       renderFolderList();
+      renderBoxFolderStrip();
       renderBoxList();
       updatePanel();
       updateWarningBoard();
@@ -415,16 +481,16 @@
     function renderBoxList() {
       const list = document.getElementById('box-list');
       list.innerHTML = '';
+      const ids = Object.keys(db.boxes);
 
-      const ids = Object.keys(db.boxes)
-        .filter(id => currentFolderId === 'all' || db.boxes[id].folderId === currentFolderId);
-
-      ids.forEach(id => {
+      const renderBoxItem = (id) => {
         const b = db.boxes[id];
+        const folderName = db.folders[b.folderId]?.name || '未分类';
         const div = document.createElement('div');
-        div.className = `item ${id === currentBoxId ? 'active' : ''}`;
+        div.className = `item box-item ${id === currentBoxId ? 'active' : ''}`;
+        div.style.borderLeftColor = getFolderColor(b.folderId);
         div.innerHTML = `
-          <div class="item-info">${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>
+          <div class="item-info">${b.name}<span class="item-tag">${b.rows}x${b.cols}</span>${currentFolderId === 'all' ? `<span class="item-tag">@${folderName}</span>` : ''}</div>
           <div>
             <button class="mini-btn" title="移动到其他文件夹" onclick="moveBoxFolder('${id}',event)">📁</button>
             <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${id}',event)">✕</button>
@@ -432,6 +498,29 @@
         `;
         div.onclick = () => { searchHighlightPos = null; switchBox(id); };
         list.appendChild(div);
+      };
+
+      if (currentFolderId !== 'all') {
+        ids.filter(id => db.boxes[id].folderId === currentFolderId).forEach(renderBoxItem);
+        return;
+      }
+
+      const grouped = {};
+      ids.forEach(id => {
+        const fid = db.boxes[id].folderId || 'default';
+        if (!grouped[fid]) grouped[fid] = [];
+        grouped[fid].push(id);
+      });
+
+      Object.keys(db.folders).forEach(fid => {
+        const folderIds = grouped[fid] || [];
+        if (!folderIds.length) return;
+        const title = document.createElement('div');
+        title.className = 'box-group-title';
+        title.style.background = getFolderColor(fid);
+        title.innerHTML = `<span>${db.folders[fid].name}</span><span>${folderIds.length}</span>`;
+        list.appendChild(title);
+        folderIds.forEach(renderBoxItem);
       });
     }
 
@@ -608,6 +697,7 @@
       document.getElementById('global-search').value = '';
       currentFolderId = db.boxes[boxId].folderId || 'all';
       renderFolderList();
+      renderBoxFolderStrip();
       searchHighlightPos = pos;
       switchBox(boxId);
       setTimeout(() => {
@@ -733,6 +823,7 @@
           selectedPositions.clear();
           renderFolderOptions();
           renderFolderList();
+          renderBoxFolderStrip();
           renderBoxList();
           renderGrid();
           updatePanel();
