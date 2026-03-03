@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>细胞冻存管理系统_v1.1</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #1890ff; --success: #52c41a; --danger: #ff4d4f; --warning: #faad14; --bg: #f5f7fa; --dark: #001529; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); }
+        .sidebar { width: 280px; background: var(--dark); color: white; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .logo { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+        .section-title { font-size: 12px; opacity: 0.8; margin: 8px 0 4px; }
+        .folder-list, .box-list { overflow-y: auto; }
+        .folder-list { max-height: 180px; }
+        .box-list { flex: 1; }
+        .folder-item, .box-item { padding: 10px 12px; cursor: pointer; border-radius: 6px; margin-bottom: 8px; background: #112a45; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; transition: .2s; }
+        .folder-item:hover, .box-item:hover { border-color: #999; }
+        .folder-item.active, .box-item.active { background: var(--primary); border-color: #40a9ff; }
+        .box-info { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .box-tag { opacity: .65; font-size: 10px; margin-left: 5px; }
+        .btn-delete-box { padding: 4px 8px; margin-left: 8px; border-radius: 4px; color: #aaa; font-weight: bold; font-size: 14px; line-height: 1; transition: .2s; }
+        .btn-delete-box:hover { background: var(--danger); color: white; }
+        .main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+        .header { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1000; }
+        .search-wrapper { flex: 1; position: relative; }
+        .search-bar { width: 100%; padding: 12px 15px; border: 1px solid #d9d9d9; border-radius: 8px; outline: none; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+        .search-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.15); max-height: 400px; overflow-y: auto; margin-top: 5px; display: none; }
+        .search-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .search-item:hover { background: #f0f7ff; }
+        .loc-tag { font-size: 11px; background: #f0f0f0; padding: 2px 6px; border-radius: 4px; color: #666; }
+        .data-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-ghost { background: white; border: 1px solid #d9d9d9; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: .2s; }
+        .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+        .content { display: flex; gap: 20px; flex: 1; overflow: hidden; }
+        .box-view { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.05); overflow: auto; flex: 1; text-align: center; display: flex; justify-content: center; align-items: flex-start; }
+        .grid { display: grid; gap: 6px; margin: 0 auto; width: fit-content; }
+        .cell { width: 48px; height: 48px; border: 1px solid #e8e8e8; border-radius: 6px; font-size: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; background: #fff; transition: all .2s; user-select: none; }
+        .cell.occupied { border-color: transparent; color: #333; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,.5); }
+        .cell.occupied:hover { cursor: grab; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+        .cell.occupied:active { cursor: grabbing; }
+        .cell.drag-over { border: 2px dashed var(--primary); background: #e6f7ff !important; }
+        .cell.selected { border: 2px solid var(--primary) !important; box-shadow: 0 0 0 3px rgba(24,144,255,.2); transform: scale(1.05); }
+        .cell.highlight-target { animation: highlight-jump 1s infinite alternate; border: 2px solid var(--warning) !important; }
+        @keyframes highlight-jump { 0% { transform: scale(1); box-shadow: 0 0 0 var(--warning); } 100% { transform: scale(1.15); box-shadow: 0 0 20px var(--warning); } }
+        .panel { width: 340px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+        input, select { width: 100%; padding: 10px; margin: 5px 0 15px; border: 1px solid #d9d9d9; border-radius: 6px; box-sizing: border-box; }
+        .inventory-stats { padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #91d5ff; background: #e6f7ff; transition: .3s; }
+        .stats-danger { background: #fff1f0; border-color: #ffa39e; color: var(--danger); }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 14px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .overview { width: 100%; text-align: left; border-collapse: collapse; }
+        .overview th, .overview td { padding: 10px; border-bottom: 1px solid #eee; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <div class="logo">🧪 细胞冻存管理_v1.1</div>
+    <div class="section-title">位置文件夹</div>
+    <div id="folder-list" class="folder-list"></div>
+    <button onclick="addNewFolder()" class="btn-ghost" style="background:#112a45;color:white;border-color:#1f3f63;">+ 新增文件夹</button>
+
+    <div class="section-title">容器列表</div>
+    <div id="box-list" class="box-list"></div>
+    <div style="padding-top:12px; border-top:1px solid #333;">
+        <select id="new-box-folder"></select>
+        <select id="new-box-specs" style="margin-bottom:10px; background:#112a45; color:white; border:none;">
+            <option value="9,9">规格: 9 x 9 (81格)</option>
+            <option value="10,10">规格: 10 x 10 (100格)</option>
+            <option value="8,12" selected>规格: 96孔板 (8行x12列)</option>
+        </select>
+        <button onclick="addNewBox()" style="width:100%; padding:10px; border-radius:6px; border:none; background:var(--primary); color:white; cursor:pointer; font-weight:bold;">+ 新增容器</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="header">
+        <div class="search-wrapper">
+            <input type="text" id="global-search" class="search-bar" placeholder="🔍 全局搜索细胞名、代数..." oninput="handleGlobalSearch()">
+            <div id="search-dropdown" class="search-dropdown"></div>
+        </div>
+        <div class="data-btns">
+            <button class="btn-ghost" onclick="switchView('overview')">📊 总览页面</button>
+            <button class="btn-ghost" onclick="switchView('grid')">🧱 容器页面</button>
+            <button class="btn-ghost" onclick="exportExcel()">📗 导出Excel</button>
+            <button class="btn-ghost" onclick="exportDB()">📤 导出备份</button>
+            <button class="btn-ghost" onclick="triggerImport()">📥 导入数据</button>
+            <input type="file" id="import-file" style="display:none" onchange="importDB(event)">
+        </div>
+    </div>
+
+    <div id="grid-content" class="content">
+        <div class="box-view">
+            <div id="empty-tip" style="color:#999; margin-top: 50px;">请在左侧选择或新增一个容器</div>
+            <div id="grid" class="grid"></div>
+        </div>
+        <div class="panel">
+            <div class="card">
+                <h3>📝 样本管理</h3>
+                <div id="stats-area" class="inventory-stats">
+                    <div style="font-size:12px;">选定位置: <strong id="sel-count">0</strong></div>
+                    <div style="margin-top:8px;">全库总余量: <span id="total-inventory" style="font-size:22px; font-weight:bold;">0</span> 管</div>
+                </div>
+                <label>细胞名称 (Name)</label>
+                <input type="text" id="cell-name" oninput="updateLiveStats()" placeholder="例如: HEK293T">
+                <label>代数 (P)</label>
+                <input type="text" id="cell-p">
+                <label>冻存日期</label>
+                <input type="date" id="cell-date">
+                <button class="btn-save" onclick="saveBatch()">保存并取消选择</button>
+                <button onclick="clearBatch()" style="width:100%; background:none; border:none; color:#999; margin-top:10px; cursor:pointer; font-size:12px;">清空所选位置 (出库)</button>
+            </div>
+            <div class="card">
+                <h3 style="color:var(--danger)">⚠️ 低库存预警</h3>
+                <div id="global-warning-list" style="max-height:180px; overflow-y:auto; font-size:13px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="overview-content" class="card hidden" style="overflow:auto;">
+        <h3>📊 文件夹库存总览</h3>
+        <table class="overview">
+            <thead>
+            <tr><th>文件夹</th><th>容器数</th><th>样本总管数</th></tr>
+            </thead>
+            <tbody id="overview-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'cell_storage_v1_db';
+let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
+let currentBoxId = null;
+let currentFolderId = 'all';
+let selectedPositions = new Set();
+let searchHighlightPos = null;
+let draggedItemPos = null;
+
+function init() {
+    normalizeData();
+    renderFolderList();
+    renderFolderOptions();
+    renderBoxList();
+    updateWarningBoard();
+    updateOverview();
+    if (Object.keys(db.boxes).length === 0) document.getElementById('empty-tip').style.display = 'block';
+}
+
+function normalizeData() {
+    let changed = false;
+    if (!db.folders) { db.folders = {}; changed = true; }
+    if (!db.boxes) { db.boxes = {}; changed = true; }
+    if (Object.keys(db.folders).length === 0) {
+        db.folders.default = { name: '默认位置' };
+        changed = true;
+    }
+    Object.values(db.boxes).forEach(box => {
+        if (box.size && !box.rows) { box.rows = box.size; box.cols = box.size; changed = true; }
+        if (!box.folderId || !db.folders[box.folderId]) { box.folderId = 'default'; changed = true; }
+    });
+    if (changed) save();
+}
+
+function addNewFolder() {
+    const name = prompt('请输入位置文件夹名称:');
+    if (!name) return;
+    const id = 'folder_' + Date.now();
+    db.folders[id] = { name };
+    save();
+    currentFolderId = id;
+    renderFolderList();
+    renderFolderOptions();
+    renderBoxList();
+    updateOverview();
+}
+
+function renderFolderList() {
+    const list = document.getElementById('folder-list');
+    list.innerHTML = '';
+    const all = document.createElement('div');
+    all.className = `folder-item ${currentFolderId === 'all' ? 'active' : ''}`;
+    all.innerHTML = `<span>全部文件夹</span><span class="box-tag">${Object.keys(db.boxes).length}</span>`;
+    all.onclick = () => { currentFolderId = 'all'; renderFolderList(); renderBoxList(); };
+    list.appendChild(all);
+
+    Object.keys(db.folders).forEach(id => {
+        const cnt = Object.values(db.boxes).filter(b => b.folderId === id).length;
+        const div = document.createElement('div');
+        div.className = `folder-item ${currentFolderId === id ? 'active' : ''}`;
+        div.innerHTML = `<span>${db.folders[id].name}</span><span class="box-tag">${cnt}</span>`;
+        div.onclick = () => { currentFolderId = id; renderFolderList(); renderBoxList(); };
+        list.appendChild(div);
+    });
+}
+
+function renderFolderOptions() {
+    const sel = document.getElementById('new-box-folder');
+    sel.innerHTML = Object.keys(db.folders).map(id => `<option value="${id}">位置: ${db.folders[id].name}</option>`).join('');
+}
+
+function addNewBox() {
+    const name = prompt('请输入容器名称 (例如: 96孔板-1):'); if (!name) return;
+    const specs = document.getElementById('new-box-specs').value.split(',').map(Number);
+    const folderId = document.getElementById('new-box-folder').value;
+    const id = 'box_' + Date.now();
+    db.boxes[id] = { name, rows: specs[0], cols: specs[1], folderId, vials: {} };
+    save(); renderFolderList(); renderBoxList(); switchBox(id); updateOverview();
+}
+
+function deleteBox(id, event) {
+    event.stopPropagation();
+    if (!confirm(`确定要删除容器【${db.boxes[id].name}】及内部样本吗？`)) return;
+    delete db.boxes[id];
+    save();
+    if (currentBoxId === id) {
+        currentBoxId = null;
+        document.getElementById('grid').innerHTML = '';
+        document.getElementById('empty-tip').style.display = 'block';
+    }
+    renderFolderList(); renderBoxList(); updatePanel(); updateWarningBoard(); updateOverview();
+}
+
+function renderBoxList() {
+    const list = document.getElementById('box-list');
+    list.innerHTML = '';
+    Object.keys(db.boxes)
+        .filter(id => currentFolderId === 'all' || db.boxes[id].folderId === currentFolderId)
+        .forEach(id => {
+            const b = db.boxes[id];
+            const div = document.createElement('div');
+            div.className = `box-item ${id === currentBoxId ? 'active' : ''}`;
+            div.innerHTML = `<div class="box-info">${b.name} <span class="box-tag">${b.rows}x${b.cols}</span></div><div class="btn-delete-box" onclick="deleteBox('${id}', event)">×</div>`;
+            div.onclick = () => { searchHighlightPos = null; switchBox(id); };
+            list.appendChild(div);
+        });
+}
+
+function switchBox(id) {
+    currentBoxId = id;
+    selectedPositions.clear();
+    document.getElementById('empty-tip').style.display = 'none';
+    renderGrid(); renderBoxList(); updatePanel();
+}
+
+function renderGrid() {
+    const grid = document.getElementById('grid'); grid.innerHTML = '';
+    if (!currentBoxId) return;
+    const box = db.boxes[currentBoxId];
+    grid.style.gridTemplateColumns = `repeat(${box.cols}, 48px)`;
+    for (let r = 1; r <= box.rows; r++) {
+        for (let c = 1; c <= box.cols; c++) {
+            const pos = `${r}-${c}`;
+            const v = box.vials[pos];
+            const el = document.createElement('div');
+            el.id = `cell-${pos}`;
+            el.className = 'cell';
+            if (v && v.name) {
+                el.classList.add('occupied');
+                el.style.backgroundColor = stringToHslColor(v.name);
+                el.title = `位置: ${pos}\n名称: ${v.name}\n代数: ${v.p || '-'}\n日期: ${v.date || '-'}`;
+                el.innerHTML = `<strong style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:44px;">${v.name}</strong><span style="font-size:8px;opacity:.8">${v.p || ''}</span>`;
+                el.setAttribute('draggable', 'true');
+                el.addEventListener('dragstart', (e) => handleDragStart(e, pos));
+                el.addEventListener('dragend', handleDragEnd);
+            } else {
+                el.innerText = pos;
+                el.addEventListener('dragover', handleDragOver);
+                el.addEventListener('dragenter', function () { this.classList.add('drag-over'); });
+                el.addEventListener('dragleave', function () { this.classList.remove('drag-over'); });
+                el.addEventListener('drop', (e) => handleDrop(e, pos));
+            }
+            if (selectedPositions.has(pos)) el.classList.add('selected');
+            if (searchHighlightPos === pos) el.classList.add('highlight-target');
+            el.addEventListener('click', () => { searchHighlightPos = null; toggleSelect(pos); });
+            grid.appendChild(el);
+        }
+    }
+}
+
+function stringToHslColor(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    return `hsl(${hash % 360}, 60%, 88%)`;
+}
+
+function handleDragStart(e, pos) { draggedItemPos = pos; e.dataTransfer.effectAllowed = 'move'; e.target.style.opacity = '.5'; }
+function handleDragEnd(e) { e.target.style.opacity = '1'; document.querySelectorAll('.cell').forEach(el => el.classList.remove('drag-over')); }
+function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+function handleDrop(e, targetPos) {
+    e.stopPropagation();
+    if (draggedItemPos === targetPos) return;
+    const box = db.boxes[currentBoxId];
+    if (box.vials[targetPos]) return alert('目标位置已有样本');
+    box.vials[targetPos] = box.vials[draggedItemPos];
+    delete box.vials[draggedItemPos];
+    save(); renderGrid(); updateOverview();
+}
+
+function toggleSelect(pos) { if (selectedPositions.has(pos)) selectedPositions.delete(pos); else selectedPositions.add(pos); renderGrid(); updatePanel(); }
+function updatePanel() {
+    document.getElementById('sel-count').innerText = selectedPositions.size;
+    if (selectedPositions.size === 1 && currentBoxId) {
+        const pos = Array.from(selectedPositions)[0];
+        const data = db.boxes[currentBoxId].vials[pos] || {};
+        document.getElementById('cell-name').value = data.name || '';
+        document.getElementById('cell-p').value = data.p || '';
+        document.getElementById('cell-date').value = data.date || '';
+    }
+    updateLiveStats();
+}
+
+function updateLiveStats() {
+    const name = document.getElementById('cell-name').value.trim().toLowerCase();
+    const totalSpan = document.getElementById('total-inventory');
+    const statsArea = document.getElementById('stats-area');
+    if (!name) { totalSpan.innerText = '0'; statsArea.classList.remove('stats-danger'); return; }
+    let count = 0;
+    Object.values(db.boxes).forEach(b => Object.values(b.vials).forEach(v => { if (v.name && v.name.toLowerCase() === name) count++; }));
+    totalSpan.innerText = count;
+    if (count > 0 && count <= 3) statsArea.classList.add('stats-danger'); else statsArea.classList.remove('stats-danger');
+}
+
+function saveBatch() {
+    if (!currentBoxId || selectedPositions.size === 0) return alert('请先选择格子');
+    const name = document.getElementById('cell-name').value.trim(); if (!name) return alert('细胞名称必填');
+    const data = { name, p: document.getElementById('cell-p').value, date: document.getElementById('cell-date').value };
+    selectedPositions.forEach(pos => db.boxes[currentBoxId].vials[pos] = { ...data });
+    selectedPositions.clear();
+    save(); renderGrid(); updatePanel(); updateWarningBoard(); updateOverview();
+}
+
+function clearBatch() {
+    if (!selectedPositions.size || !confirm('确定要清空所选位置吗？')) return;
+    selectedPositions.forEach(pos => delete db.boxes[currentBoxId].vials[pos]);
+    selectedPositions.clear();
+    save(); renderGrid(); updatePanel(); updateWarningBoard(); updateOverview();
+}
+
+function handleGlobalSearch() {
+    const term = document.getElementById('global-search').value.toLowerCase().trim();
+    const dropdown = document.getElementById('search-dropdown');
+    if (!term) { dropdown.style.display = 'none'; return; }
+    const matches = [];
+    Object.keys(db.boxes).forEach(boxId => {
+        const box = db.boxes[boxId];
+        Object.keys(box.vials).forEach(pos => {
+            const v = box.vials[pos];
+            if (v.name && (v.name.toLowerCase().includes(term) || (v.p || '').toLowerCase().includes(term))) {
+                matches.push({ boxId, boxName: box.name, folderName: db.folders[box.folderId]?.name || '-', pos, name: v.name, p: v.p });
+            }
+        });
+    });
+    dropdown.innerHTML = matches.length ? matches.map(m => `<div class="search-item" onclick="jumpToVial('${m.boxId}','${m.pos}')"><div><strong>${m.name}</strong> <small style="color:#888">(${m.p || '-'})</small></div><div class="loc-tag">${m.folderName}/${m.boxName} [${m.pos}]</div></div>`).join('') : '<div style="padding:15px;color:#999;">未找到匹配样本</div>';
+    dropdown.style.display = 'block';
+}
+
+function jumpToVial(boxId, pos) {
+    document.getElementById('search-dropdown').style.display = 'none';
+    document.getElementById('global-search').value = '';
+    currentFolderId = db.boxes[boxId].folderId || 'all';
+    renderFolderList();
+    searchHighlightPos = pos;
+    switchBox(boxId);
+    setTimeout(() => {
+        const el = document.getElementById(`cell-${pos}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+}
+
+function updateWarningBoard() {
+    const board = document.getElementById('global-warning-list');
+    const counts = {};
+    Object.values(db.boxes).forEach(b => Object.values(b.vials).forEach(v => { if (v.name) counts[v.name] = (counts[v.name] || 0) + 1; }));
+    const lows = Object.keys(counts).filter(n => counts[n] <= 3);
+    board.innerHTML = lows.length ? lows.map(n => `<div style="padding:8px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;"><span>${n}</span><b style="color:var(--danger)">余${counts[n]}</b></div>`).join('') : '<div style="color:#ccc;text-align:center;">✅ 库存充足</div>';
+}
+
+function switchView(view) {
+    document.getElementById('grid-content').classList.toggle('hidden', view !== 'grid');
+    document.getElementById('overview-content').classList.toggle('hidden', view !== 'overview');
+    if (view === 'overview') updateOverview();
+}
+
+function updateOverview() {
+    const body = document.getElementById('overview-body');
+    const rows = Object.keys(db.folders).map(folderId => {
+        const boxes = Object.values(db.boxes).filter(b => b.folderId === folderId);
+        let vialCount = 0;
+        boxes.forEach(b => vialCount += Object.keys(b.vials).length);
+        return `<tr><td>${db.folders[folderId].name}</td><td>${boxes.length}</td><td>${vialCount}</td></tr>`;
+    });
+    body.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="3" style="color:#999;">暂无数据</td></tr>';
+}
+
+function exportExcel() {
+    if (typeof XLSX === 'undefined') return alert('Excel 导出库加载失败，请检查网络后重试');
+    const rows = [];
+    Object.keys(db.boxes).forEach(boxId => {
+        const b = db.boxes[boxId];
+        const folderName = db.folders[b.folderId]?.name || '未分类';
+        const positions = Object.keys(b.vials);
+        if (positions.length === 0) {
+            rows.push({ 文件夹: folderName, 容器: b.name, 规格: `${b.rows}x${b.cols}`, 位置: '', 细胞名称: '', 代数: '', 冻存日期: '' });
+        } else {
+            positions.forEach(pos => {
+                const v = b.vials[pos] || {};
+                rows.push({ 文件夹: folderName, 容器: b.name, 规格: `${b.rows}x${b.cols}`, 位置: pos, 细胞名称: v.name || '', 代数: v.p || '', 冻存日期: v.date || '' });
+            });
+        }
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '样本明细');
+
+    const summary = Object.keys(db.folders).map(folderId => {
+        const boxes = Object.values(db.boxes).filter(b => b.folderId === folderId);
+        let vialCount = 0;
+        boxes.forEach(b => vialCount += Object.keys(b.vials).length);
+        return { 文件夹: db.folders[folderId].name, 容器数量: boxes.length, 样本总管数: vialCount };
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), '文件夹总览');
+
+    XLSX.writeFile(wb, `Cell_Storage_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+function exportDB() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type: 'application/json' }));
+    a.download = `Cell_Storage_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+}
+function triggerImport() { document.getElementById('import-file').click(); }
+function importDB(e) {
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+        try {
+            const data = JSON.parse(ev.target.result);
+            if (data.boxes) {
+                db = data;
+                normalizeData();
+                init();
+                save();
+                alert('数据导入成功！');
+            } else alert('文件格式错误，非有效的备份文件。');
+        } catch (err) { alert('导入失败，文件可能已损坏。'); }
+    };
+    reader.readAsText(e.target.files[0]);
+    e.target.value = '';
+}
+
+document.addEventListener('click', (e) => { if (!e.target.closest('.search-wrapper')) document.getElementById('search-dropdown').style.display = 'none'; });
+init();
+</script>
+</body>
+</html>
