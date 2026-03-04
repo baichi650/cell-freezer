@@ -447,6 +447,7 @@
     const BACKUP_HANDLE_DB = 'cell_freezer_backup_handles';
     const BACKUP_HANDLE_STORE = 'handles';
     const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
+    const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -613,11 +614,42 @@
     }
 
 
+
+    function getDailyBackupFileName(date = new Date()) {
+      return `backup_${date.toISOString().slice(0, 10)}.json`;
+    }
+
+    function upsertDailyBackupRecord(folder, filePayload) {
+      folder.files = folder.files || [];
+      const idx = folder.files.findIndex(f => f.name === filePayload.name);
+      if (idx >= 0) folder.files[idx] = filePayload;
+      else folder.files.unshift(filePayload);
+      folder.files = folder.files
+        .sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))
+        .slice(0, AUTO_BACKUP_LIMIT);
+      return folder;
+    }
+
+    function loadLatestBackupDataFromLocal() {
+      try {
+        const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
+        const files = (folder.files || []).slice().sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+        const latest = files[0];
+        if (!latest || !latest.content) return null;
+        const data = JSON.parse(latest.content);
+        if (!data || typeof data !== 'object' || !data.boxes) return null;
+        return data;
+      } catch (err) {
+        console.warn('读取最新备份失败:', err);
+        return null;
+      }
+    }
+
     function saveAutoBackup(reason = 'manual') {
       if (!autoBackupEnabled) return;
       try {
         const savedAt = new Date().toISOString();
-        const fileName = `backup_${savedAt.replaceAll(':', '-').replaceAll('.', '-')}.json`;
+        const fileName = getDailyBackupFileName(new Date(savedAt));
         const jsonContent = JSON.stringify(db, null, 2);
 
         const filePayload = {
@@ -631,12 +663,10 @@
 
         const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
         folder.dir = AUTO_BACKUP_DIR;
-        folder.files = folder.files || [];
-        folder.files.unshift(filePayload);
-        folder.files = folder.files.slice(0, AUTO_BACKUP_LIMIT);
+        upsertDailyBackupRecord(folder, filePayload);
         localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
 
-        // 尝试写入 HTML 所在目录下授权的 auto-backups 文件夹
+        // 授权后会覆盖写入当天同名备份文件
         writeBackupFileToFolder(fileName, jsonContent);
       } catch (err) {
         console.warn('自动备份失败:', err);
@@ -669,8 +699,17 @@
       if (changed) save();
     }
 
-    function init() {
+    async function init() {
       registerAutoBackupHooks();
+
+      const firstLoadDone = localStorage.getItem(FIRST_LOAD_KEY) === '1';
+      if (firstLoadDone) {
+        const latest = loadLatestBackupDataFromLocal();
+        if (latest) db = latest;
+      } else {
+        localStorage.setItem(FIRST_LOAD_KEY, '1');
+      }
+
       normalizeData();
       renderFolderOptions();
       renderFolderList();
