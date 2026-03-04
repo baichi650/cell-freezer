@@ -390,7 +390,11 @@
         <button class="btn" onclick="triggerImport()">📥 导入数据</button>
         <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
       </div>
-      <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
+      <div class="row" style="align-items:center; flex-wrap:wrap;">
+        <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
+        <button class="btn" onclick="enableFolderAutoBackup()">🗂 启用文件夹自动备份</button>
+        <span id="backup-status" class="muted">文件夹自动备份：未授权（当前仅浏览器本地）</span>
+      </div>
     </div>
 
     <section id="grid-view" class="content">
@@ -438,6 +442,8 @@
     const AUTO_BACKUP_LIST_KEY = 'cell_storage_v1_2_auto_backup_list';
     const AUTO_BACKUP_LIMIT = 10;
     const AUTO_BACKUP_DIR = 'auto-backups';
+    const BACKUP_HANDLE_DB = 'cell_freezer_backup_handles';
+    const BACKUP_HANDLE_STORE = 'handles';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -450,6 +456,108 @@
     let collapsedOverviewBoxes = new Set();
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+
+
+    function openBackupHandleDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(BACKUP_HANDLE_DB, 1);
+        req.onupgradeneeded = () => {
+          const dbi = req.result;
+          if (!dbi.objectStoreNames.contains(BACKUP_HANDLE_STORE)) dbi.createObjectStore(BACKUP_HANDLE_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveDirectoryHandle(handle) {
+      try {
+        const dbi = await openBackupHandleDb();
+        await new Promise((resolve, reject) => {
+          const tx = dbi.transaction(BACKUP_HANDLE_STORE, 'readwrite');
+          tx.objectStore(BACKUP_HANDLE_STORE).put(handle, 'autoBackupDirHandle');
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        dbi.close();
+      } catch (err) {
+        console.warn('保存目录句柄失败:', err);
+      }
+    }
+
+    async function loadDirectoryHandle() {
+      try {
+        const dbi = await openBackupHandleDb();
+        const handle = await new Promise((resolve, reject) => {
+          const tx = dbi.transaction(BACKUP_HANDLE_STORE, 'readonly');
+          const req = tx.objectStore(BACKUP_HANDLE_STORE).get('autoBackupDirHandle');
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+        dbi.close();
+        return handle;
+      } catch (err) {
+        console.warn('读取目录句柄失败:', err);
+        return null;
+      }
+    }
+
+    async function ensureWritableBackupDir(interactive = false) {
+      if (!('showDirectoryPicker' in window)) return null;
+      let dirHandle = await loadDirectoryHandle();
+      if (!dirHandle && interactive) {
+        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        await saveDirectoryHandle(dirHandle);
+      }
+      if (!dirHandle) return null;
+      const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') {
+        const next = interactive ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
+        if (next !== 'granted') return null;
+      }
+      return await dirHandle.getDirectoryHandle(AUTO_BACKUP_DIR, { create: true });
+    }
+
+    async function writeBackupFileToFolder(fileName, content) {
+      try {
+        const backupDir = await ensureWritableBackupDir(false);
+        if (!backupDir) return false;
+        const fileHandle = await backupDir.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        return true;
+      } catch (err) {
+        console.warn('写入文件夹自动备份失败:', err);
+        return false;
+      }
+    }
+
+    async function refreshBackupStatus() {
+      const el = document.getElementById('backup-status');
+      if (!el) return;
+      if (!('showDirectoryPicker' in window)) {
+        el.textContent = '文件夹自动备份：当前浏览器不支持（仅本地备份）';
+        return;
+      }
+      const writable = await ensureWritableBackupDir(false);
+      el.textContent = writable
+        ? `文件夹自动备份：已启用（${AUTO_BACKUP_DIR}）`
+        : '文件夹自动备份：未授权（当前仅浏览器本地）';
+    }
+
+    async function enableFolderAutoBackup() {
+      if (!('showDirectoryPicker' in window)) return alert('当前浏览器不支持目录写入 API。');
+      try {
+        await ensureWritableBackupDir(true);
+        await refreshBackupStatus();
+        saveAutoBackup('grant-folder-backup');
+        alert('已启用文件夹自动备份。后续将自动写入 auto-backups 目录。');
+      } catch (err) {
+        console.warn(err);
+        alert('未完成授权，仍将使用浏览器本地自动备份。');
+      }
+    }
 
 
     function saveAutoBackup(reason = 'manual') {
@@ -473,6 +581,9 @@
         folder.files.unshift(filePayload);
         folder.files = folder.files.slice(0, AUTO_BACKUP_LIMIT);
         localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
+
+        // 尝试写入 HTML 所在目录下授权的 auto-backups 文件夹
+        writeBackupFileToFolder(fileName, jsonContent);
       } catch (err) {
         console.warn('自动备份失败:', err);
       }
@@ -515,6 +626,7 @@
       renderOverviewFolderStrip();
       updateOverview();
       saveAutoBackup('init-snapshot');
+      refreshBackupStatus();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
 
