@@ -448,6 +448,7 @@
     const BACKUP_HANDLE_STORE = 'handles';
     const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
     const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
+    const AUTO_BACKUP_AUTHORIZED_KEY = 'cell_freezer_auto_backup_authorized';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -566,9 +567,12 @@
         return;
       }
       const writable = await ensureWritableBackupDir(false);
+      const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
       el.textContent = writable
         ? `文件夹自动备份：已启用（${AUTO_BACKUP_DIR}）`
-        : '文件夹自动备份：已启用（未授权目录，当前仅本地）';
+        : (everAuthorized
+          ? '文件夹自动备份：待恢复目录权限（当前仍本地备份）'
+          : '文件夹自动备份：已启用（未授权目录，当前仅本地）');
     }
 
     async function enableFolderAutoBackup() {
@@ -580,6 +584,7 @@
       }
       try {
         await ensureWritableBackupDir(true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
         await refreshBackupStatus();
         saveAutoBackup('grant-folder-backup');
         alert('已启用自动备份。后续将自动写入 auto-backups 目录。');
@@ -596,6 +601,7 @@
         autoBackupEnabled = true;
         localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
         await ensureWritableBackupDir(true, true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
         await refreshBackupStatus();
         saveAutoBackup('change-folder');
         alert('备份文件夹已更新。');
@@ -608,12 +614,32 @@
     async function disableAutoBackup() {
       autoBackupEnabled = false;
       localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '0');
+      localStorage.removeItem(AUTO_BACKUP_AUTHORIZED_KEY);
       await clearDirectoryHandle();
       await refreshBackupStatus();
       alert('自动备份已关闭。');
     }
 
 
+
+
+    async function restoreBackupPermissionOnLoad() {
+      if (!autoBackupEnabled || !('showDirectoryPicker' in window)) return;
+      const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
+      if (!everAuthorized) return;
+      try {
+        const handle = await loadDirectoryHandle();
+        if (!handle) return;
+        const current = await handle.queryPermission({ mode: 'readwrite' });
+        if (current === 'prompt') {
+          // 某些浏览器会允许在已记录句柄上恢复授权，若不允许则保持本地备份兜底
+          const next = await handle.requestPermission({ mode: 'readwrite' });
+          if (next === 'granted') await saveDirectoryHandle(handle);
+        }
+      } catch (err) {
+        console.warn('恢复备份目录权限失败:', err);
+      }
+    }
 
     function getDailyBackupFileName(date = new Date()) {
       return `backup_${date.toISOString().slice(0, 10)}.json`;
@@ -719,6 +745,7 @@
       renderOverviewFolderStrip();
       updateOverview();
       saveAutoBackup('init-snapshot');
+      await restoreBackupPermissionOnLoad();
       refreshBackupStatus();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
