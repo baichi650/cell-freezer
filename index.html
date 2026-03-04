@@ -40,24 +40,40 @@
     .box-list { flex: 1; min-height: 180px; }
     .folder-strip {
       display: flex;
-      gap: 6px;
+      gap: 8px;
       overflow-x: auto;
-      padding: 2px 0 8px;
+      padding: 4px 2px 10px;
       scrollbar-width: thin;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.08);
     }
     .folder-chip {
       flex: 0 0 auto;
-      border: 1px solid rgba(255,255,255,.16);
+      border: 1px solid rgba(120,195,255,.3);
       border-radius: 999px;
-      padding: 4px 10px;
+      padding: 5px 12px;
       font-size: 12px;
-      color: #d9d9d9;
+      font-weight: 600;
+      color: #d0e9ff;
       cursor: pointer;
       white-space: nowrap;
-      background: rgba(255,255,255,.04);
+      background: rgba(17,42,69,.9);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+      transition: all .2s ease;
     }
-    .folder-chip.active { color: #fff; border-color: currentColor; box-shadow: 0 0 0 1px rgba(255,255,255,.25) inset; }
-    .folder-chip.all.active { color: #69c0ff; }
+    .folder-chip:hover {
+      transform: translateY(-1px);
+      border-color: rgba(140,215,255,.8);
+      box-shadow: 0 2px 8px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.12);
+    }
+    .folder-chip.active {
+      color: #fff;
+      border-color: currentColor;
+      background: linear-gradient(135deg, rgba(24,144,255,.55), rgba(19,194,194,.3));
+      box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset, 0 4px 12px rgba(24,144,255,.25);
+    }
+    .folder-chip.all.active { color: #8fd3ff; }
     .box-group-title {
       font-size: 12px;
       margin: 8px 0 6px;
@@ -358,6 +374,9 @@
 
   <script>
     const STORAGE_KEY = 'cell_storage_v1_2_db';
+    const AUTO_BACKUP_KEY = 'cell_storage_v1_2_auto_backup_latest';
+    const AUTO_BACKUP_LIST_KEY = 'cell_storage_v1_2_auto_backup_list';
+    const AUTO_BACKUP_LIMIT = 10;
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -370,6 +389,33 @@
     let collapsedOverviewBoxes = new Set();
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+
+
+    function saveAutoBackup(reason = 'manual') {
+      try {
+        const payload = {
+          reason,
+          savedAt: new Date().toISOString(),
+          db
+        };
+        localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(payload));
+
+        const history = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '[]');
+        history.unshift(payload);
+        localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(history.slice(0, AUTO_BACKUP_LIMIT)));
+      } catch (err) {
+        console.warn('自动备份失败:', err);
+      }
+    }
+
+    function registerAutoBackupHooks() {
+      const autoBackup = () => saveAutoBackup('page-close');
+      window.addEventListener('beforeunload', autoBackup);
+      window.addEventListener('pagehide', autoBackup);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveAutoBackup('visibility-hidden');
+      });
+    }
 
     function normalizeData() {
       let changed = false;
@@ -389,6 +435,7 @@
     }
 
     function init() {
+      registerAutoBackupHooks();
       normalizeData();
       renderFolderOptions();
       renderFolderList();
@@ -397,6 +444,7 @@
       updateWarningBoard();
       renderOverviewFolderStrip();
       updateOverview();
+      saveAutoBackup('init-snapshot');
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
 
@@ -523,9 +571,13 @@
     function renderBoxFolderStrip() {
       const strip = document.getElementById('box-folder-strip');
       const folderIds = Object.keys(db.folders);
+      const total = Object.keys(db.boxes).length;
       strip.innerHTML = [
-        `<div class="folder-chip all ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部</div>`,
-        ...folderIds.map(fid => `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${db.folders[fid].name}</div>`)
+        `<div class="folder-chip all ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部 · ${total}</div>`,
+        ...folderIds.map(fid => {
+          const count = Object.values(db.boxes).filter(b => b.folderId === fid).length;
+          return `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${db.folders[fid].name} · ${count}</div>`;
+        })
       ].join('');
     }
 
