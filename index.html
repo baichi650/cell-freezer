@@ -449,6 +449,7 @@
     const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
     const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
     const AUTO_BACKUP_AUTHORIZED_KEY = 'cell_freezer_auto_backup_authorized';
+    const AUTO_BACKUP_MODE_KEY = 'cell_freezer_auto_backup_mode';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -459,7 +460,9 @@
     let currentOverviewFolderId = 'all';
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
-    let autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== '0';
+    const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
+    if (savedEnabledState === null) localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+    let autoBackupEnabled = (savedEnabledState ?? '1') !== '0';
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 
@@ -568,11 +571,13 @@
       }
       const writable = await ensureWritableBackupDir(false);
       const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
+      const mode = writable ? 'folder' : 'local';
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, mode);
       el.textContent = writable
-        ? `文件夹自动备份：已启用（${AUTO_BACKUP_DIR}）`
+        ? `自动备份：开启（文件夹 ${AUTO_BACKUP_DIR}）`
         : (everAuthorized
-          ? '文件夹自动备份：待恢复目录权限（当前仍本地备份）'
-          : '文件夹自动备份：已启用（未授权目录，当前仅本地）');
+          ? '自动备份：开启（本地备份进行中，目录权限待系统恢复）'
+          : '自动备份：开启（本地备份进行中，尚未授权目录）');
     }
 
     async function enableFolderAutoBackup() {
@@ -585,6 +590,7 @@
       try {
         await ensureWritableBackupDir(true);
         localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
         await refreshBackupStatus();
         saveAutoBackup('grant-folder-backup');
         alert('已启用自动备份。后续将自动写入 auto-backups 目录。');
@@ -602,6 +608,7 @@
         localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
         await ensureWritableBackupDir(true, true);
         localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
         await refreshBackupStatus();
         saveAutoBackup('change-folder');
         alert('备份文件夹已更新。');
@@ -614,6 +621,7 @@
     async function disableAutoBackup() {
       autoBackupEnabled = false;
       localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '0');
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'off');
       localStorage.removeItem(AUTO_BACKUP_AUTHORIZED_KEY);
       await clearDirectoryHandle();
       await refreshBackupStatus();
@@ -628,28 +636,18 @@
       const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
       if (!everAuthorized) return false;
       try {
-        // 直接验证目录是否仍可写（多数浏览器在曾授权后无需再次手势）
         const writableDir = await ensureWritableBackupDir(false);
         if (writableDir) {
           localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
           return true;
         }
-
-        // 如果存在句柄但权限处于 prompt，尝试恢复；失败则继续本地兜底
-        const handle = await loadDirectoryHandle();
-        if (!handle) return false;
-        const current = await handle.queryPermission({ mode: 'readwrite' });
-        if (current === 'prompt') {
-          const next = await handle.requestPermission({ mode: 'readwrite' });
-          if (next === 'granted') {
-            await saveDirectoryHandle(handle);
-            localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
-            return true;
-          }
-        }
+        // 不强制再次弹授权，避免用户每次都要点击；继续本地自动备份兜底
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
         return false;
       } catch (err) {
         console.warn('恢复备份目录权限失败:', err);
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
         return false;
       }
     }
@@ -705,8 +703,10 @@
         upsertDailyBackupRecord(folder, filePayload);
         localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
 
-        // 授权后会覆盖写入当天同名备份文件
-        writeBackupFileToFolder(fileName, jsonContent);
+        // 文件夹写入为增强能力；即使失败也持续进行本地自动备份（无需手动再次启用）
+        writeBackupFileToFolder(fileName, jsonContent)
+          .then(ok => localStorage.setItem(AUTO_BACKUP_MODE_KEY, ok ? 'folder' : 'local'))
+          .catch(() => localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local'));
       } catch (err) {
         console.warn('自动备份失败:', err);
       }
