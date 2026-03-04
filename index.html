@@ -512,6 +512,21 @@
     }
 
 
+    async function verifyPermission(handle, readWrite = true, request = false) {
+      if (!handle) return false;
+      const opts = { mode: readWrite ? 'readwrite' : 'read' };
+      const q = await handle.queryPermission(opts);
+      if (q === 'granted') return true;
+      if (!request) return false;
+      try {
+        const r = await handle.requestPermission(opts);
+        return r === 'granted';
+      } catch {
+        return false;
+      }
+    }
+
+
     async function clearDirectoryHandle() {
       try {
         const dbi = await openBackupHandleDb();
@@ -531,15 +546,14 @@
       if (!('showDirectoryPicker' in window)) return null;
       let dirHandle = forcePick ? null : await loadDirectoryHandle();
       if (!dirHandle && interactive) {
-        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        dirHandle = await window.showDirectoryPicker({ id: 'freezer-auto-backup-dir', mode: 'readwrite' });
         await saveDirectoryHandle(dirHandle);
       }
       if (!dirHandle) return null;
-      const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') {
-        const next = interactive ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
-        if (next !== 'granted') return null;
-      }
+
+      const granted = await verifyPermission(dirHandle, true, interactive);
+      if (!granted) return null;
+
       return await dirHandle.getDirectoryHandle(AUTO_BACKUP_DIR, { create: true });
     }
 
@@ -636,13 +650,27 @@
       const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
       if (!everAuthorized) return false;
       try {
-        const writableDir = await ensureWritableBackupDir(false);
+        // 1) 先无打扰检查是否已恢复
+        let writableDir = await ensureWritableBackupDir(false);
         if (writableDir) {
           localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
           localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
           return true;
         }
-        // 不强制再次弹授权，避免用户每次都要点击；继续本地自动备份兜底
+
+        // 2) 按 Chrome 持久权限方案：对已存句柄尝试 requestPermission
+        const handle = await loadDirectoryHandle();
+        const granted = await verifyPermission(handle, true, true);
+        if (granted) {
+          await saveDirectoryHandle(handle);
+          writableDir = await ensureWritableBackupDir(false);
+          if (writableDir) {
+            localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+            localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+            return true;
+          }
+        }
+
         localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
         return false;
       } catch (err) {
