@@ -37,7 +37,13 @@
     .section-title { font-size: 12px; opacity: .8; margin: 6px 0 2px; }
     .list { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 8px; overflow: auto; }
     .folder-list { max-height: 200px; }
-    .box-list { flex: 1; min-height: 180px; }
+    .box-list {
+      flex: 1;
+      min-height: 180px;
+      padding: 10px;
+      background: linear-gradient(180deg, rgba(2,22,44,.65), rgba(2,22,44,.2));
+      border: 1px solid rgba(73,132,179,.26);
+    }
     .folder-strip {
       display: flex;
       gap: 8px;
@@ -100,6 +106,54 @@
     .item:hover { border-color: #6f6f6f; }
     .item.active { background: var(--primary); border-color: #69c0ff; }
     .item.folder-item, .item.box-item { border-left: 4px solid transparent; }
+    .item.box-item {
+      border-left-width: 6px;
+      background: linear-gradient(145deg, rgba(22,59,94,.92), rgba(10,35,61,.92));
+      border-color: rgba(114,190,255,.22);
+      box-shadow: 0 2px 10px rgba(0,0,0,.18);
+      padding: 10px 10px;
+    }
+    .item.box-item:hover {
+      border-color: rgba(151,216,255,.6);
+      transform: translateY(-1px);
+    }
+    .item.box-item .item-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      min-width: 0;
+      white-space: normal;
+    }
+    .box-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f0f8ff;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .box-meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 10px;
+    }
+    .box-meta-badge {
+      border: 1px solid rgba(174,228,255,.35);
+      border-radius: 999px;
+      padding: 1px 6px;
+      color: #d7f1ff;
+      background: rgba(255,255,255,.08);
+    }
+    .item.box-item .mini-btn {
+      border: 1px solid rgba(174,228,255,.25);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: rgba(255,255,255,.06);
+      color: #cfeeff;
+    }
     .item-info { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .item-tag {
       font-size: 10px;
@@ -312,6 +366,7 @@
         <option value="8,12" selected>规格: 96孔板 (8x12)</option>
         <option value="9,9">规格: 9x9 (81格)</option>
         <option value="10,10">规格: 10x10 (100格)</option>
+        <option value="12,6">规格: 12x6 (72格)</option>
       </select>
       <button class="btn primary" style="width:100%" onclick="addBox()">+ 新增容器</button>
     </div>
@@ -331,6 +386,7 @@
         <button class="btn" onclick="triggerImport()">📥 导入数据</button>
         <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
       </div>
+      <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
     </div>
 
     <section id="grid-view" class="content">
@@ -377,6 +433,7 @@
     const AUTO_BACKUP_KEY = 'cell_storage_v1_2_auto_backup_latest';
     const AUTO_BACKUP_LIST_KEY = 'cell_storage_v1_2_auto_backup_list';
     const AUTO_BACKUP_LIMIT = 10;
+    const AUTO_BACKUP_DIR = 'auto-backups';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -393,16 +450,25 @@
 
     function saveAutoBackup(reason = 'manual') {
       try {
-        const payload = {
-          reason,
-          savedAt: new Date().toISOString(),
-          db
-        };
-        localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(payload));
+        const savedAt = new Date().toISOString();
+        const fileName = `backup_${savedAt.replaceAll(':', '-').replaceAll('.', '-')}.json`;
+        const jsonContent = JSON.stringify(db, null, 2);
 
-        const history = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '[]');
-        history.unshift(payload);
-        localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(history.slice(0, AUTO_BACKUP_LIMIT)));
+        const filePayload = {
+          dir: AUTO_BACKUP_DIR,
+          name: fileName,
+          reason,
+          savedAt,
+          content: jsonContent
+        };
+        localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(filePayload));
+
+        const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
+        folder.dir = AUTO_BACKUP_DIR;
+        folder.files = folder.files || [];
+        folder.files.unshift(filePayload);
+        folder.files = folder.files.slice(0, AUTO_BACKUP_LIMIT);
+        localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
       } catch (err) {
         console.warn('自动备份失败:', err);
       }
@@ -653,7 +719,13 @@ ${options}`);
         div.className = `item box-item ${id === currentBoxId ? 'active' : ''}`;
         div.style.borderLeftColor = getFolderColor(b.folderId);
         div.innerHTML = `
-          <div class="item-info">${b.name}<span class="item-tag">${b.rows}x${b.cols}</span>${currentFolderId === 'all' ? `<span class="item-tag">@${folderName}</span>` : ''}</div>
+          <div class="item-info">
+            <div class="box-name">${b.name}</div>
+            <div class="box-meta">
+              <span class="box-meta-badge">${b.rows}x${b.cols}</span>
+              ${currentFolderId === 'all' ? `<span class="box-meta-badge">${folderName}</span>` : ''}
+            </div>
+          </div>
           <div>
             <button class="mini-btn" title="移动到其他文件夹" onclick="moveBoxFolder('${id}',event)">📁</button>
             <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${id}',event)">✕</button>
