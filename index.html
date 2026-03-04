@@ -36,13 +36,18 @@
     .logo { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
     .section-title { font-size: 12px; opacity: .8; margin: 6px 0 2px; }
     .list { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 8px; overflow: auto; }
-    .folder-list { max-height: 200px; }
+    .folder-list { max-height: 132px; }
     .box-list {
       flex: 1;
       min-height: 180px;
       padding: 10px;
       background: linear-gradient(180deg, rgba(2,22,44,.65), rgba(2,22,44,.2));
       border: 1px solid rgba(73,132,179,.26);
+    }
+    .folder-list .item {
+      padding: 6px 8px;
+      margin-bottom: 5px;
+      font-size: 12px;
     }
     .folder-strip {
       display: flex;
@@ -357,7 +362,6 @@
     </div>
 
     <div class="section-title">容器列表</div>
-    <div id="box-folder-strip" class="folder-strip"></div>
     <div id="box-list" class="list box-list"></div>
 
     <div style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px;">
@@ -636,6 +640,7 @@
 
     function renderBoxFolderStrip() {
       const strip = document.getElementById('box-folder-strip');
+      if (!strip) return;
       const folderIds = Object.keys(db.folders);
       const total = Object.keys(db.boxes).length;
       strip.innerHTML = [
