@@ -773,17 +773,35 @@ ${options}`);
       updatePanel();
     }
 
+
+    function getDisplayLayout(box) {
+      // 12x6 规格按横向展示：6行x12列（仅改变可视化，不改存储坐标）
+      if (box.rows === 12 && box.cols === 6) {
+        return {
+          renderRows: 6,
+          renderCols: 12,
+          toPos: (r, c) => `${c}-${r}`
+        };
+      }
+      return {
+        renderRows: box.rows,
+        renderCols: box.cols,
+        toPos: (r, c) => `${r}-${c}`
+      };
+    }
+
     function renderGrid() {
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
       if (!currentBoxId || !db.boxes[currentBoxId]) return;
 
       const box = db.boxes[currentBoxId];
-      grid.style.gridTemplateColumns = `repeat(${box.cols}, 48px)`;
+      const layout = getDisplayLayout(box);
+      grid.style.gridTemplateColumns = `repeat(${layout.renderCols}, 48px)`;
 
-      for (let r = 1; r <= box.rows; r++) {
-        for (let c = 1; c <= box.cols; c++) {
-          const pos = `${r}-${c}`;
+      for (let r = 1; r <= layout.renderRows; r++) {
+        for (let c = 1; c <= layout.renderCols; c++) {
+          const pos = layout.toPos(r, c);
           const vial = box.vials[pos];
           const el = document.createElement('div');
           el.className = 'cell';
