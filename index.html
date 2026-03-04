@@ -251,9 +251,28 @@
       overflow: auto;
       border: 1px solid #f0f0f0;
       border-radius: 8px;
+      padding: 10px;
+      background: #fafafa;
     }
-    .overview-table { width: 100%; border-collapse: collapse; }
-    .overview-table th, .overview-table td { text-align: left; padding: 10px; border-bottom: 1px solid #f0f0f0; }
+    .overview-tree { display: flex; flex-direction: column; gap: 10px; }
+    .ov-folder, .ov-box { border: 1px solid #ececec; border-radius: 8px; background: #fff; }
+    .ov-folder-head, .ov-box-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ov-folder-head { font-weight: 700; }
+    .ov-box-head { font-size: 13px; border-top: 1px dashed #f0f0f0; }
+    .ov-arrow { width: 16px; text-align: center; color: #666; }
+    .ov-meta { font-size: 12px; color: #888; }
+    .ov-folder-body, .ov-box-body { padding: 0 10px 10px; }
+    .ov-items { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .ov-items th, .ov-items td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+    .ov-empty { color: #999; padding: 8px 2px; font-size: 12px; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -329,15 +348,10 @@
     </section>
 
     <section id="overview-view" class="overview-wrap card">
-      <h3>📊 文件夹库存总览</h3>
+      <h3>📊 文件夹/容器总览</h3>
       <div id="overview-folder-strip" class="overview-filter"></div>
-      <div class="overview-scroll">
-        <table class="overview-table">
-          <thead>
-            <tr><th>文件夹</th><th>物品名称</th><th>数量</th></tr>
-          </thead>
-          <tbody id="overview-body"></tbody>
-        </table>
+      <div id="overview-scroll" class="overview-scroll" onwheel="handleOverviewWheel(event)">
+        <div id="overview-tree" class="overview-tree"></div>
       </div>
     </section>
   </main>
@@ -352,6 +366,8 @@
     let searchHighlightPos = null;
     let draggedItemPos = null;
     let currentOverviewFolderId = 'all';
+    let collapsedOverviewFolders = new Set();
+    let collapsedOverviewBoxes = new Set();
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 
@@ -822,34 +838,93 @@ ${options}`);
       if (view === 'overview') { renderOverviewFolderStrip(); updateOverview(); }
     }
 
+
+    function toggleOverviewFolder(folderId) {
+      if (collapsedOverviewFolders.has(folderId)) collapsedOverviewFolders.delete(folderId);
+      else collapsedOverviewFolders.add(folderId);
+      updateOverview();
+    }
+
+    function toggleOverviewBox(boxId) {
+      if (collapsedOverviewBoxes.has(boxId)) collapsedOverviewBoxes.delete(boxId);
+      else collapsedOverviewBoxes.add(boxId);
+      updateOverview();
+    }
+
+    function handleOverviewWheel(e) {
+      const el = document.getElementById('overview-scroll');
+      if (!el) return;
+      el.scrollTop += e.deltaY;
+    }
+
     function updateOverview() {
-      const body = document.getElementById('overview-body');
-      const rows = [];
+      const tree = document.getElementById('overview-tree');
       const folderIds = currentOverviewFolderId === 'all' ? Object.keys(db.folders) : [currentOverviewFolderId].filter(fid => db.folders[fid]);
+      const chunks = [];
 
       folderIds.forEach(fid => {
-        const folderName = db.folders[fid].name;
-        const boxes = Object.values(db.boxes).filter(b => b.folderId === fid);
-        const counts = {};
-        boxes.forEach(b => {
-          Object.values(b.vials).forEach(v => {
-            if (!v.name) return;
-            counts[v.name] = (counts[v.name] || 0) + 1;
-          });
-        });
+        const folder = db.folders[fid];
+        const boxes = Object.keys(db.boxes)
+          .filter(boxId => db.boxes[boxId].folderId === fid)
+          .sort((a, b) => (db.boxes[a].name || '').localeCompare(db.boxes[b].name || '', 'zh-CN'));
 
-        const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-CN'));
-        if (!names.length) {
-          rows.push(`<tr><td>${folderName}</td><td>（无样本）</td><td>0</td></tr>`);
-          return;
+        const folderTotal = boxes.reduce((sum, boxId) => {
+          const b = db.boxes[boxId];
+          return sum + Object.values(b.vials || {}).filter(v => v && v.name).length;
+        }, 0);
+
+        const folderCollapsed = collapsedOverviewFolders.has(fid);
+        let folderBody = '<div class="ov-folder-body">';
+
+        if (!boxes.length) {
+          folderBody += '<div class="ov-empty">该文件夹暂无容器</div>';
+        } else {
+          boxes.forEach(boxId => {
+            const b = db.boxes[boxId];
+            const counts = {};
+            Object.values(b.vials || {}).forEach(v => {
+              if (!v || !v.name) return;
+              counts[v.name] = (counts[v.name] || 0) + 1;
+            });
+            const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-CN'));
+            const boxTotal = names.reduce((sum, name) => sum + counts[name], 0);
+            const boxCollapsed = collapsedOverviewBoxes.has(boxId);
+
+            let boxBody = '<div class="ov-box-body">';
+            if (!names.length) {
+              boxBody += '<div class="ov-empty">容器内暂无样本</div>';
+            } else {
+              boxBody += '<table class="ov-items"><thead><tr><th>样本名</th><th>数量</th></tr></thead><tbody>';
+              names.forEach(name => { boxBody += `<tr><td>${name}</td><td>${counts[name]}</td></tr>`; });
+              boxBody += '</tbody></table>';
+            }
+            boxBody += '</div>';
+
+            folderBody += `
+              <div class="ov-box">
+                <div class="ov-box-head" onclick="toggleOverviewBox('${boxId}')">
+                  <div><span class="ov-arrow">${boxCollapsed ? '▶' : '▼'}</span>${b.name} <span class="ov-meta">(${b.rows}x${b.cols})</span></div>
+                  <div class="ov-meta">总计 ${boxTotal} 管</div>
+                </div>
+                ${boxCollapsed ? '' : boxBody}
+              </div>
+            `;
+          });
         }
 
-        names.forEach((name, idx) => {
-          rows.push(`<tr><td>${idx === 0 ? folderName : ''}</td><td>${name}</td><td>${counts[name]}</td></tr>`);
-        });
+        folderBody += '</div>';
+        chunks.push(`
+          <div class="ov-folder" style="border-left:4px solid ${getFolderColor(fid)}">
+            <div class="ov-folder-head" onclick="toggleOverviewFolder('${fid}')">
+              <div><span class="ov-arrow">${folderCollapsed ? '▶' : '▼'}</span>${folder.name}</div>
+              <div class="ov-meta">容器 ${boxes.length} | 样本 ${folderTotal}</div>
+            </div>
+            ${folderCollapsed ? '' : folderBody}
+          </div>
+        `);
       });
 
-      body.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="3">暂无数据</td></tr>';
+      tree.innerHTML = chunks.length ? chunks.join('') : '<div class="ov-empty">暂无数据</div>';
     }
 
     function exportExcel() {
