@@ -392,7 +392,9 @@
       </div>
       <div class="row" style="align-items:center; flex-wrap:wrap;">
         <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
-        <button class="btn" onclick="enableFolderAutoBackup()">🗂 启用文件夹自动备份</button>
+        <button class="btn" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
+        <button class="btn" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
+        <button class="btn" onclick="disableAutoBackup()">⏹ 关闭自动备份</button>
         <span id="backup-status" class="muted">文件夹自动备份：未授权（当前仅浏览器本地）</span>
       </div>
     </div>
@@ -444,6 +446,7 @@
     const AUTO_BACKUP_DIR = 'auto-backups';
     const BACKUP_HANDLE_DB = 'cell_freezer_backup_handles';
     const BACKUP_HANDLE_STORE = 'handles';
+    const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -454,6 +457,7 @@
     let currentOverviewFolderId = 'all';
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
+    let autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== '0';
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 
@@ -502,9 +506,25 @@
       }
     }
 
-    async function ensureWritableBackupDir(interactive = false) {
+
+    async function clearDirectoryHandle() {
+      try {
+        const dbi = await openBackupHandleDb();
+        await new Promise((resolve, reject) => {
+          const tx = dbi.transaction(BACKUP_HANDLE_STORE, 'readwrite');
+          tx.objectStore(BACKUP_HANDLE_STORE).delete('autoBackupDirHandle');
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        dbi.close();
+      } catch (err) {
+        console.warn('清理目录句柄失败:', err);
+      }
+    }
+
+    async function ensureWritableBackupDir(interactive = false, forcePick = false) {
       if (!('showDirectoryPicker' in window)) return null;
-      let dirHandle = await loadDirectoryHandle();
+      let dirHandle = forcePick ? null : await loadDirectoryHandle();
       if (!dirHandle && interactive) {
         dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
         await saveDirectoryHandle(dirHandle);
@@ -540,27 +560,61 @@
         el.textContent = '文件夹自动备份：当前浏览器不支持（仅本地备份）';
         return;
       }
+      if (!autoBackupEnabled) {
+        el.textContent = '文件夹自动备份：已关闭';
+        return;
+      }
       const writable = await ensureWritableBackupDir(false);
       el.textContent = writable
         ? `文件夹自动备份：已启用（${AUTO_BACKUP_DIR}）`
-        : '文件夹自动备份：未授权（当前仅浏览器本地）';
+        : '文件夹自动备份：已启用（未授权目录，当前仅本地）';
     }
 
     async function enableFolderAutoBackup() {
-      if (!('showDirectoryPicker' in window)) return alert('当前浏览器不支持目录写入 API。');
+      autoBackupEnabled = true;
+      localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+      if (!('showDirectoryPicker' in window)) {
+        await refreshBackupStatus();
+        return alert('当前浏览器不支持目录写入 API，将仅使用本地自动备份。');
+      }
       try {
         await ensureWritableBackupDir(true);
         await refreshBackupStatus();
         saveAutoBackup('grant-folder-backup');
-        alert('已启用文件夹自动备份。后续将自动写入 auto-backups 目录。');
+        alert('已启用自动备份。后续将自动写入 auto-backups 目录。');
       } catch (err) {
         console.warn(err);
-        alert('未完成授权，仍将使用浏览器本地自动备份。');
+        await refreshBackupStatus();
+        alert('未完成授权，当前将仅使用本地自动备份。');
       }
+    }
+
+    async function changeBackupFolder() {
+      if (!('showDirectoryPicker' in window)) return alert('当前浏览器不支持目录写入 API。');
+      try {
+        autoBackupEnabled = true;
+        localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+        await ensureWritableBackupDir(true, true);
+        await refreshBackupStatus();
+        saveAutoBackup('change-folder');
+        alert('备份文件夹已更新。');
+      } catch (err) {
+        console.warn(err);
+        alert('未完成文件夹更换。');
+      }
+    }
+
+    async function disableAutoBackup() {
+      autoBackupEnabled = false;
+      localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '0');
+      await clearDirectoryHandle();
+      await refreshBackupStatus();
+      alert('自动备份已关闭。');
     }
 
 
     function saveAutoBackup(reason = 'manual') {
+      if (!autoBackupEnabled) return;
       try {
         const savedAt = new Date().toISOString();
         const fileName = `backup_${savedAt.replaceAll(':', '-').replaceAll('.', '-')}.json`;
@@ -1187,52 +1241,51 @@ ${options}`);
     }
 
     function exportExcel() {
-      const details = [];
-      Object.values(db.boxes).forEach(b => {
-        const folderName = db.folders[b.folderId]?.name || '未分类';
-        const positions = Object.keys(b.vials);
-        if (!positions.length) {
-          details.push({ 文件夹: folderName, 容器: b.name, 规格: `${b.rows}x${b.cols}`, 位置: '', 细胞名称: '', 代数: '', 冻存日期: '' });
-          return;
-        }
-        positions.forEach(pos => {
-          const v = b.vials[pos] || {};
-          details.push({ 文件夹: folderName, 容器: b.name, 规格: `${b.rows}x${b.cols}`, 位置: pos, 细胞名称: v.name || '', 代数: v.p || '', 冻存日期: v.date || '' });
-        });
-      });
-
-      const summary = [];
-      Object.keys(db.folders).forEach(fid => {
-        const folderName = db.folders[fid].name;
-        const boxes = Object.values(db.boxes).filter(b => b.folderId === fid);
-        const counts = {};
-        boxes.forEach(b => {
-          Object.values(b.vials).forEach(v => {
-            if (!v.name) return;
-            counts[v.name] = (counts[v.name] || 0) + 1;
-          });
-        });
-        const names = Object.keys(counts);
-        if (!names.length) {
-          summary.push({ 文件夹: folderName, 物品名称: '（无样本）', 数量: 0 });
-          return;
-        }
-        names.sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-CN'));
-        names.forEach(name => summary.push({ 文件夹: folderName, 物品名称: name, 数量: counts[name] }));
-      });
-
-      if (typeof XLSX !== 'undefined') {
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(details), '样本明细');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), '文件夹总览');
-        XLSX.writeFile(wb, `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
-      } else {
-        const csv = [Object.keys(details[0] || {}).join(','), ...details.map(r => Object.values(r).map(v => `"${String(v).replaceAll('"', '""')}"`).join(','))].join('\n');
+      if (typeof XLSX === 'undefined') {
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-        a.download = `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.csv`;
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' }));
+        a.download = `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.json`;
         a.click();
+        return;
       }
+
+      const wb = XLSX.utils.book_new();
+      const boxIds = Object.keys(db.boxes);
+      if (!boxIds.length) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['暂无数据']]), '空数据');
+        XLSX.writeFile(wb, `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+        return;
+      }
+
+      boxIds.forEach((boxId, idx) => {
+        const b = db.boxes[boxId];
+        const folderName = db.folders[b.folderId]?.name || '未分类';
+        const layout = getDisplayLayout(b);
+
+        const aoa = [];
+        aoa.push([`文件夹: ${folderName}`, `容器: ${b.name}`, `规格: ${b.rows}x${b.cols}`]);
+
+        const header = ['行\列'];
+        for (let c = 1; c <= layout.renderCols; c++) header.push(`C${c}`);
+        aoa.push(header);
+
+        for (let r = 1; r <= layout.renderRows; r++) {
+          const row = [`R${r}`];
+          for (let c = 1; c <= layout.renderCols; c++) {
+            const pos = layout.toPos(r, c);
+            const v = b.vials[pos];
+            row.push(v?.name ? `${v.name}${v.p ? ` (${v.p})` : ''}` : '');
+          }
+          aoa.push(row);
+        }
+
+        const sheet = XLSX.utils.aoa_to_sheet(aoa);
+        sheet['!cols'] = Array(layout.renderCols + 1).fill({ wch: 14 });
+        const safeName = `${String(idx + 1).padStart(2, '0')}_${b.name}`.slice(0, 31);
+        XLSX.utils.book_append_sheet(wb, sheet, safeName || `容器${idx + 1}`);
+      });
+
+      XLSX.writeFile(wb, `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
     function exportJSON() {
