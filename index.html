@@ -647,32 +647,26 @@
 
     async function restoreBackupPermissionOnLoad() {
       if (!autoBackupEnabled || !('showDirectoryPicker' in window)) return false;
-      const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
-      if (!everAuthorized) return false;
       try {
-        // 1) 先无打扰检查是否已恢复
-        let writableDir = await ensureWritableBackupDir(false);
-        if (writableDir) {
-          localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
-          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
-          return true;
-        }
-
-        // 2) 按 Chrome 持久权限方案：对已存句柄尝试 requestPermission
+        // 仅做静默恢复，不在页面加载时弹权限框（按需只在“启用/更改文件夹”时请求）
         const handle = await loadDirectoryHandle();
-        const granted = await verifyPermission(handle, true, true);
-        if (granted) {
-          await saveDirectoryHandle(handle);
-          writableDir = await ensureWritableBackupDir(false);
-          if (writableDir) {
-            localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
-            localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
-            return true;
-          }
+        if (!handle) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
         }
-
-        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
-        return false;
+        const granted = await verifyPermission(handle, true, false);
+        if (!granted) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const writableDir = await ensureWritableBackupDir(false);
+        if (!writableDir) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+        return true;
       } catch (err) {
         console.warn('恢复备份目录权限失败:', err);
         localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
@@ -786,9 +780,7 @@
       renderOverviewFolderStrip();
       updateOverview();
 
-      const restored = await restoreBackupPermissionOnLoad();
-      // 先恢复权限再备份，避免每次启动第一轮备份落空
-      saveAutoBackup(restored ? 'init-snapshot-restored' : 'init-snapshot');
+      await restoreBackupPermissionOnLoad();
       refreshBackupStatus();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
