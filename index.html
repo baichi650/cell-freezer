@@ -206,6 +206,25 @@
     .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
     .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
     .header .row { flex-wrap: wrap; }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-top-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .search-wrap.compact {
+      flex: 0 1 420px;
+      max-width: 420px;
+      min-width: 300px;
+    }
     .toolbar-card {
       border: 1px solid #e6e6e6;
       border-radius: 10px;
@@ -473,10 +492,19 @@
 
   <main class="main">
     <div class="header">
-      <div class="search-wrap">
-        <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
-        <div id="search-dd" class="search-dd"></div>
+      <div class="header-top">
+        <div class="search-wrap compact">
+          <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
+          <div id="search-dd" class="search-dd"></div>
+        </div>
+        <div class="header-top-right">
+          <button class="btn compact" onclick="switchView('grid')">🧱 容器页面</button>
+          <button class="btn compact" onclick="switchView('overview')">📊 总览页面</button>
+          <span id="backup-dir-top" class="meta-pill dir">📂 自动备份目录：auto-backups（JSON）</span>
+          <span id="backup-status-top" class="meta-pill state local">自动备份：开启（本地备份进行中，尚未授权目录）</span>
+        </div>
       </div>
+
       <div id="collapsed-toolbar-buttons" class="toolbar-collapsed-buttons hidden">
         <button id="collapsed-main-actions" class="btn compact" onclick="expandHeaderSection('main-actions')">页面与数据操作（展开）</button>
         <button id="collapsed-backup-actions" class="btn compact" onclick="expandHeaderSection('backup-actions')">自动备份设置（展开）</button>
@@ -488,8 +516,6 @@
           <button id="toggle-main-actions" class="btn compact" onclick="toggleHeaderSection('main-actions')">收起</button>
         </div>
         <div id="main-actions" class="toolbar-actions">
-          <button class="btn compact" onclick="switchView('grid')">🧱 容器页面</button>
-          <button class="btn compact" onclick="switchView('overview')">📊 总览页面</button>
           <button class="btn compact" onclick="exportExcel()">📗 导出Excel</button>
           <button class="btn compact" onclick="exportJSON()">📤 导出备份</button>
           <button class="btn compact" onclick="triggerImport()">📥 导入数据</button>
@@ -691,12 +717,15 @@
     }
 
     function setBackupStatus(text, mode = 'local') {
-      const el = document.getElementById('backup-status');
-      if (!el) return;
-      el.textContent = text;
-      el.classList.remove('local', 'off');
-      if (mode === 'local') el.classList.add('local');
-      if (mode === 'off') el.classList.add('off');
+      const targets = [document.getElementById('backup-status'), document.getElementById('backup-status-top')].filter(Boolean);
+      targets.forEach(el => {
+        el.textContent = text;
+        el.classList.remove('local', 'off');
+        if (mode === 'local') el.classList.add('local');
+        if (mode === 'off') el.classList.add('off');
+      });
+      const dirTop = document.getElementById('backup-dir-top');
+      if (dirTop) dirTop.textContent = `📂 自动备份目录：${AUTO_BACKUP_DIR}（JSON）`;
     }
 
     async function refreshBackupStatus() {
