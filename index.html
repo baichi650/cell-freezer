@@ -287,6 +287,11 @@
       font-size: 12px;
       border-radius: 7px;
     }
+    .toolbar-collapsed-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
     @media (max-width: 1080px) {
       .backup-actions {
         flex-wrap: wrap;
@@ -472,7 +477,12 @@
         <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
         <div id="search-dd" class="search-dd"></div>
       </div>
-      <div class="toolbar-card">
+      <div id="collapsed-toolbar-buttons" class="toolbar-collapsed-buttons hidden">
+        <button id="collapsed-main-actions" class="btn compact" onclick="expandHeaderSection('main-actions')">页面与数据操作（展开）</button>
+        <button id="collapsed-backup-actions" class="btn compact" onclick="expandHeaderSection('backup-actions')">自动备份设置（展开）</button>
+      </div>
+
+      <div id="main-actions-card" class="toolbar-card">
         <div class="toolbar-head">
           <div class="toolbar-title">页面与数据操作</div>
           <button id="toggle-main-actions" class="btn compact" onclick="toggleHeaderSection('main-actions')">收起</button>
@@ -487,7 +497,7 @@
         </div>
       </div>
 
-      <div class="toolbar-card">
+      <div id="backup-actions-card" class="toolbar-card">
         <div class="toolbar-head">
           <div class="toolbar-title">自动备份设置</div>
           <button id="toggle-backup-actions" class="btn compact" onclick="toggleHeaderSection('backup-actions')">收起</button>
@@ -877,21 +887,39 @@
 
     function applyHeaderSectionState() {
       const state = loadHeaderSectionState();
-      ['main-actions', 'backup-actions'].forEach(sectionId => {
-        const section = document.getElementById(sectionId);
-        const toggleBtn = document.getElementById(`toggle-${sectionId}`);
-        if (!section || !toggleBtn) return;
-        const collapsed = state[sectionId] === true;
-        section.classList.toggle('hidden', collapsed);
-        toggleBtn.textContent = collapsed ? '展开' : '收起';
+      const sections = [
+        { id: 'main-actions', cardId: 'main-actions-card', collapsedBtnId: 'collapsed-main-actions' },
+        { id: 'backup-actions', cardId: 'backup-actions-card', collapsedBtnId: 'collapsed-backup-actions' }
+      ];
+
+      let collapsedCount = 0;
+      sections.forEach(({ id, cardId, collapsedBtnId }) => {
+        const card = document.getElementById(cardId);
+        const collapsedBtn = document.getElementById(collapsedBtnId);
+        const collapsed = state[id] === true;
+        if (card) card.classList.toggle('hidden', collapsed);
+        if (collapsedBtn) collapsedBtn.classList.toggle('hidden', !collapsed);
+        if (collapsed) collapsedCount++;
       });
+
+      const collapsedWrap = document.getElementById('collapsed-toolbar-buttons');
+      if (collapsedWrap) collapsedWrap.classList.toggle('hidden', collapsedCount === 0);
+    }
+
+    function setHeaderSectionCollapsed(sectionId, collapsed) {
+      const state = loadHeaderSectionState();
+      state[sectionId] = collapsed;
+      saveHeaderSectionState(state);
+      applyHeaderSectionState();
     }
 
     function toggleHeaderSection(sectionId) {
       const state = loadHeaderSectionState();
-      state[sectionId] = !(state[sectionId] === true);
-      saveHeaderSectionState(state);
-      applyHeaderSectionState();
+      setHeaderSectionCollapsed(sectionId, !(state[sectionId] === true));
+    }
+
+    function expandHeaderSection(sectionId) {
+      setHeaderSectionCollapsed(sectionId, false);
     }
 
     function normalizeData() {
