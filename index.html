@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>细胞冻存管理系统 v1.3</title>
+  <title>freezer-1.3</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -204,7 +204,8 @@
     }
 
     .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
-    .header { display: flex; gap: 10px; align-items: center; }
+    .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+    .header .row { flex-wrap: wrap; }
     .search-wrap { flex: 1; position: relative; }
     .search { width: 100%; padding: 12px; border: 1px solid #d9d9d9; border-radius: 8px; }
     .search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(24,144,255,.2); }
@@ -353,7 +354,7 @@
 </head>
 <body>
   <aside class="sidebar">
-    <div class="logo">🧪 细胞冻存管理 v1.2</div>
+    <div class="logo">🧪 freezer-1.3</div>
 
     <div class="section-title">位置文件夹</div>
     <div id="folder-list" class="list folder-list"></div>
@@ -382,7 +383,7 @@
         <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
         <div id="search-dd" class="search-dd"></div>
       </div>
-      <div class="row" style="flex-wrap:wrap;">
+      <div class="row">
         <button class="btn" onclick="switchView('grid')">🧱 容器页面</button>
         <button class="btn" onclick="switchView('overview')">📊 总览页面</button>
         <button class="btn" onclick="exportExcel()">📗 导出Excel</button>
@@ -390,7 +391,7 @@
         <button class="btn" onclick="triggerImport()">📥 导入数据</button>
         <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
       </div>
-      <div class="row" style="align-items:center; flex-wrap:wrap;">
+      <div class="row" style="align-items:center;">
         <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
         <button class="btn" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
         <button class="btn" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
@@ -447,6 +448,9 @@
     const BACKUP_HANDLE_DB = 'cell_freezer_backup_handles';
     const BACKUP_HANDLE_STORE = 'handles';
     const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
+    const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
+    const AUTO_BACKUP_AUTHORIZED_KEY = 'cell_freezer_auto_backup_authorized';
+    const AUTO_BACKUP_MODE_KEY = 'cell_freezer_auto_backup_mode';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -457,7 +461,9 @@
     let currentOverviewFolderId = 'all';
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
-    let autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== '0';
+    const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
+    if (savedEnabledState === null) localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+    let autoBackupEnabled = (savedEnabledState ?? '1') !== '0';
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 
@@ -507,6 +513,21 @@
     }
 
 
+    async function verifyPermission(handle, readWrite = true, request = false) {
+      if (!handle) return false;
+      const opts = { mode: readWrite ? 'readwrite' : 'read' };
+      const q = await handle.queryPermission(opts);
+      if (q === 'granted') return true;
+      if (!request) return false;
+      try {
+        const r = await handle.requestPermission(opts);
+        return r === 'granted';
+      } catch {
+        return false;
+      }
+    }
+
+
     async function clearDirectoryHandle() {
       try {
         const dbi = await openBackupHandleDb();
@@ -526,15 +547,14 @@
       if (!('showDirectoryPicker' in window)) return null;
       let dirHandle = forcePick ? null : await loadDirectoryHandle();
       if (!dirHandle && interactive) {
-        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        dirHandle = await window.showDirectoryPicker({ id: 'freezer-auto-backup-dir', mode: 'readwrite' });
         await saveDirectoryHandle(dirHandle);
       }
       if (!dirHandle) return null;
-      const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') {
-        const next = interactive ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
-        if (next !== 'granted') return null;
-      }
+
+      const granted = await verifyPermission(dirHandle, true, interactive);
+      if (!granted) return null;
+
       return await dirHandle.getDirectoryHandle(AUTO_BACKUP_DIR, { create: true });
     }
 
@@ -565,9 +585,14 @@
         return;
       }
       const writable = await ensureWritableBackupDir(false);
+      const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
+      const mode = writable ? 'folder' : 'local';
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, mode);
       el.textContent = writable
-        ? `文件夹自动备份：已启用（${AUTO_BACKUP_DIR}）`
-        : '文件夹自动备份：已启用（未授权目录，当前仅本地）';
+        ? `自动备份：开启（文件夹 ${AUTO_BACKUP_DIR}）`
+        : (everAuthorized
+          ? '自动备份：开启（本地备份进行中，目录权限待系统恢复）'
+          : '自动备份：开启（本地备份进行中，尚未授权目录）');
     }
 
     async function enableFolderAutoBackup() {
@@ -579,6 +604,8 @@
       }
       try {
         await ensureWritableBackupDir(true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
         await refreshBackupStatus();
         saveAutoBackup('grant-folder-backup');
         alert('已启用自动备份。后续将自动写入 auto-backups 目录。');
@@ -595,6 +622,8 @@
         autoBackupEnabled = true;
         localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
         await ensureWritableBackupDir(true, true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
         await refreshBackupStatus();
         saveAutoBackup('change-folder');
         alert('备份文件夹已更新。');
@@ -607,17 +636,80 @@
     async function disableAutoBackup() {
       autoBackupEnabled = false;
       localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '0');
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'off');
+      localStorage.removeItem(AUTO_BACKUP_AUTHORIZED_KEY);
       await clearDirectoryHandle();
       await refreshBackupStatus();
       alert('自动备份已关闭。');
     }
 
 
+
+
+    async function restoreBackupPermissionOnLoad() {
+      if (!autoBackupEnabled || !('showDirectoryPicker' in window)) return false;
+      try {
+        // 仅做静默恢复，不在页面加载时弹权限框（按需只在“启用/更改文件夹”时请求）
+        const handle = await loadDirectoryHandle();
+        if (!handle) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const granted = await verifyPermission(handle, true, false);
+        if (!granted) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const writableDir = await ensureWritableBackupDir(false);
+        if (!writableDir) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+        return true;
+      } catch (err) {
+        console.warn('恢复备份目录权限失败:', err);
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+        return false;
+      }
+    }
+
+    function getDailyBackupFileName(date = new Date()) {
+      return `backup_${date.toISOString().slice(0, 10)}.json`;
+    }
+
+    function upsertDailyBackupRecord(folder, filePayload) {
+      folder.files = folder.files || [];
+      const idx = folder.files.findIndex(f => f.name === filePayload.name);
+      if (idx >= 0) folder.files[idx] = filePayload;
+      else folder.files.unshift(filePayload);
+      folder.files = folder.files
+        .sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))
+        .slice(0, AUTO_BACKUP_LIMIT);
+      return folder;
+    }
+
+    function loadLatestBackupDataFromLocal() {
+      try {
+        const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
+        const files = (folder.files || []).slice().sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+        const latest = files[0];
+        if (!latest || !latest.content) return null;
+        const data = JSON.parse(latest.content);
+        if (!data || typeof data !== 'object' || !data.boxes) return null;
+        return data;
+      } catch (err) {
+        console.warn('读取最新备份失败:', err);
+        return null;
+      }
+    }
+
     function saveAutoBackup(reason = 'manual') {
       if (!autoBackupEnabled) return;
       try {
         const savedAt = new Date().toISOString();
-        const fileName = `backup_${savedAt.replaceAll(':', '-').replaceAll('.', '-')}.json`;
+        const fileName = getDailyBackupFileName(new Date(savedAt));
         const jsonContent = JSON.stringify(db, null, 2);
 
         const filePayload = {
@@ -631,13 +723,13 @@
 
         const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
         folder.dir = AUTO_BACKUP_DIR;
-        folder.files = folder.files || [];
-        folder.files.unshift(filePayload);
-        folder.files = folder.files.slice(0, AUTO_BACKUP_LIMIT);
+        upsertDailyBackupRecord(folder, filePayload);
         localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
 
-        // 尝试写入 HTML 所在目录下授权的 auto-backups 文件夹
-        writeBackupFileToFolder(fileName, jsonContent);
+        // 文件夹写入为增强能力；即使失败也持续进行本地自动备份（无需手动再次启用）
+        writeBackupFileToFolder(fileName, jsonContent)
+          .then(ok => localStorage.setItem(AUTO_BACKUP_MODE_KEY, ok ? 'folder' : 'local'))
+          .catch(() => localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local'));
       } catch (err) {
         console.warn('自动备份失败:', err);
       }
@@ -669,8 +761,17 @@
       if (changed) save();
     }
 
-    function init() {
+    async function init() {
       registerAutoBackupHooks();
+
+      const firstLoadDone = localStorage.getItem(FIRST_LOAD_KEY) === '1';
+      if (firstLoadDone) {
+        const latest = loadLatestBackupDataFromLocal();
+        if (latest) db = latest;
+      } else {
+        localStorage.setItem(FIRST_LOAD_KEY, '1');
+      }
+
       normalizeData();
       renderFolderOptions();
       renderFolderList();
@@ -679,7 +780,8 @@
       updateWarningBoard();
       renderOverviewFolderStrip();
       updateOverview();
-      saveAutoBackup('init-snapshot');
+
+      await restoreBackupPermissionOnLoad();
       refreshBackupStatus();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
