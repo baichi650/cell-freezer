@@ -1242,6 +1242,78 @@
       return folder;
     }
 
+    function coerceBackupData(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const source = (raw.data && typeof raw.data === 'object') ? raw.data : raw;
+
+      const folderMap = {};
+      const addFolder = (id, name, parentId = null) => {
+        const fid = String(id || '').trim();
+        if (!fid) return null;
+        if (!folderMap[fid]) folderMap[fid] = { name: String(name || fid), parentId: parentId || null };
+        else {
+          if (name) folderMap[fid].name = String(name);
+          if (parentId !== undefined && parentId !== null) folderMap[fid].parentId = parentId;
+        }
+        return fid;
+      };
+
+      const srcFolders = source.folders || source.locations || source.folderMap;
+      if (Array.isArray(srcFolders)) {
+        srcFolders.forEach((f, idx) => {
+          if (typeof f === 'string') { addFolder(`folder_${idx + 1}`, f, null); return; }
+          if (!f || typeof f !== 'object') return;
+          addFolder(f.id || f.folderId || f.key || `folder_${idx + 1}`, f.name || f.title || `位置${idx + 1}`, f.parentId || f.parent || null);
+        });
+      } else if (srcFolders && typeof srcFolders === 'object') {
+        Object.keys(srcFolders).forEach(fid => {
+          const f = srcFolders[fid];
+          if (typeof f === 'string') addFolder(fid, f, null);
+          else if (f && typeof f === 'object') addFolder(fid, f.name || f.title || fid, f.parentId || f.parent || null);
+        });
+      }
+
+      const rawBoxes = source.boxes || source.containers || source.freezers;
+      if (!rawBoxes) return null;
+      const boxPairs = Array.isArray(rawBoxes)
+        ? rawBoxes.map((b, i) => [b?.id || b?.boxId || b?.key || `box_${Date.now()}_${i}`, b])
+        : Object.entries(rawBoxes);
+
+      const boxes = {};
+      boxPairs.forEach(([id, b], idx) => {
+        if (!b || typeof b !== 'object') return;
+        const folderId = b.folderId || b.locationId || b.folder || b.location || 'default';
+        if (!folderMap[folderId]) addFolder(folderId, String(folderId), null);
+
+        let vials = b.vials || b.cells || b.samples || {};
+        if (Array.isArray(vials)) {
+          const mapped = {};
+          vials.forEach((item, i) => {
+            if (!item || typeof item !== 'object') return;
+            const pos = item.pos || item.position || item.key || `${Math.floor(i / 12) + 1}-${(i % 12) + 1}`;
+            mapped[pos] = {
+              name: item.name || item.cellName || '',
+              p: item.p || item.passage || '',
+              date: item.date || item.freezeDate || ''
+            };
+          });
+          vials = mapped;
+        }
+
+        boxes[String(id || `box_${idx + 1}`)] = {
+          name: b.name || b.title || `容器${idx + 1}`,
+          rows: Number(b.rows || b.r || b.height || 8) || 8,
+          cols: Number(b.cols || b.c || b.width || 12) || 12,
+          folderId,
+          vials: (vials && typeof vials === 'object') ? vials : {}
+        };
+      });
+
+      if (!Object.keys(folderMap).length) folderMap.default = { name: '默认位置', parentId: null };
+      if (!folderMap.default) folderMap.default = { name: '默认位置', parentId: null };
+      return { folders: folderMap, boxes };
+    }
+
     function loadLatestBackupDataFromLocal() {
       try {
         const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
@@ -1249,8 +1321,7 @@
         const latest = files[0];
         if (!latest || !latest.content) return null;
         const data = JSON.parse(latest.content);
-        if (!data || typeof data !== 'object' || !data.boxes) return null;
-        return data;
+        return coerceBackupData(data);
       } catch (err) {
         console.warn('读取最新备份失败:', err);
         return null;
@@ -1338,7 +1409,7 @@
       if (!db.boxes || typeof db.boxes !== 'object') { db.boxes = {}; changed = true; }
       if (!Object.keys(db.folders).length) { db.folders.default = { name: '默认位置', parentId: null }; changed = true; }
 
-      getOrderedFolderIds().forEach(fid => {
+      Object.keys(db.folders).forEach(fid => {
         const f = db.folders[fid] || {};
         if (!f.name) { f.name = fid; changed = true; }
         if (!Object.prototype.hasOwnProperty.call(f, 'parentId')) { f.parentId = null; changed = true; }
@@ -1509,7 +1580,7 @@
 
     function getFolderChildrenMap() {
       const map = {};
-      getOrderedFolderIds().forEach(fid => {
+      Object.keys(db.folders).forEach(fid => {
         const parentId = db.folders[fid]?.parentId || null;
         if (!map[parentId]) map[parentId] = [];
         map[parentId].push(fid);
@@ -2426,8 +2497,9 @@ ${options}`);
       reader.onload = ev => {
         try {
           const data = JSON.parse(ev.target.result);
-          if (!data.boxes) return alert('文件格式错误，不是有效备份。');
-          db = data;
+          const normalized = coerceBackupData(data);
+          if (!normalized) return alert('文件格式错误，不是有效备份。');
+          db = normalized;
           normalizeData();
           save();
           currentBoxId = null;
