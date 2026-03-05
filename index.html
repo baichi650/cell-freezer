@@ -1770,7 +1770,6 @@
     function renderBoxFilters() {
       const el = document.getElementById('box-filter-chips');
       if (!el) return;
-      const lowNames = getLowInventoryNames();
       const lowBoxCount = Object.values(db.boxes).filter(b => Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name))).length;
       el.innerHTML = `
         <button class="side-filter ${boxFilterMode === 'all' ? 'active' : ''}" onclick="setBoxFilterMode('all')">全部 ${Object.keys(db.boxes).length}</button>
@@ -1921,17 +1920,12 @@
 
       const childrenMap = getFolderChildrenMap();
       const key = folderSearchKeyword.trim().toLowerCase();
-      const lowNames = getLowInventoryNames();
       const visibleFolders = new Set();
       const visibleBoxesByFolder = {};
 
       Object.keys(db.boxes).forEach(bid => {
         const b = db.boxes[bid];
         if (!b) return;
-        if (boxFilterMode === 'low') {
-          const hasLow = Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name));
-          if (!hasLow) return;
-        }
         if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return;
         const fid = b.folderId || 'default';
         if (!visibleBoxesByFolder[fid]) visibleBoxesByFolder[fid] = [];
