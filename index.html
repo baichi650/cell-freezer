@@ -298,7 +298,7 @@
     }
     .sidebar-head { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
     .sidebar-title { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
-    .sidebar-sub { font-size: 13px; font-weight: 700; }
+    .sidebar-sub { font-size: 13px; font-weight: 700; color: #d8eeff; }
     .sidebar-search {
       width: 100%;
       border: 1px solid rgba(162,201,255,.35);
@@ -345,8 +345,10 @@
 
     .folder-sort-tip {
       font-size: 11px;
-      color: #9ac7f2;
+      color: rgba(216,238,255,.78);
       margin-top: -2px;
+      padding-left: 4px;
+      border-left: 2px solid rgba(121,190,255,.45);
     }
     .folder-sort-ops {
       display: inline-flex;
@@ -1671,6 +1673,15 @@
       renderCollapsedNav();
     }
 
+    function handleFolderTreeItemClick(folderId, expandable) {
+      if (folderSortMode) return;
+      if (expandable) {
+        if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+        else collapsedNavExpandedFolders.add(folderId);
+      }
+      setFolderFilter(folderId);
+    }
+
     function setFolderFilter(folderId) {
       currentFolderId = folderId;
       if (folderId !== 'all') expandFolderAncestors(folderId);
@@ -1935,7 +1946,9 @@
         const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
         const childIds = (childrenMap[fid] || []).filter(cid => !key || visible.has(cid));
         const expanded = collapsedNavExpandedFolders.has(fid) || !!key;
+        const directBoxCount = Object.values(db.boxes).filter(b => b.folderId === fid).length;
         const hasChildren = childIds.length > 0;
+        const expandable = hasChildren || directBoxCount > 0;
 
         const div = document.createElement('div');
         div.className = `item folder-item tree-item ${currentFolderId === fid ? 'active' : ''}`;
@@ -1943,8 +1956,8 @@
         const sortOps = folderSortMode && fid !== 'default'
           ? `<span class="folder-sort-ops"><button class="mini-btn" onclick="moveFolderOrder('${fid}',-1,event)">↑</button><button class="mini-btn" onclick="moveFolderOrder('${fid}',1,event)">↓</button></span>`
           : '';
-        const arrow = hasChildren ? (expanded ? '▾' : '▸') : '•';
-        const arrowClick = hasChildren ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
+        const arrow = expandable ? (expanded ? '▾' : '▸') : '•';
+        const arrowClick = expandable ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
         div.innerHTML = `
           <div class="item-info" style="padding-left:${depth * 14}px">
             <span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}
@@ -1957,7 +1970,7 @@
         div.onpointerdown = () => startFolderLongPress(fid);
         div.onpointerup = cancelFolderLongPress;
         div.onpointerleave = cancelFolderLongPress;
-        div.onclick = () => { if (!folderSortMode) setFolderFilter(fid); };
+        div.onclick = () => handleFolderTreeItemClick(fid, expandable);
         list.appendChild(div);
 
         if (expanded) childIds.forEach(cid => renderNode(cid, depth + 1));
