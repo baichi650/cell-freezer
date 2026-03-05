@@ -2021,7 +2021,7 @@
         const arrow = expandable ? (expanded ? '▾' : '▸') : '•';
         const arrowClick = expandable ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
         div.innerHTML = `
-          <div class="item-info" style="padding-left:${depth * 14}px">
+          <div class="item-info">
             <span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}
           </div>
           <div>
@@ -2044,7 +2044,7 @@
           const boxDiv = document.createElement('div');
           boxDiv.className = `item tree-item ${currentBoxId === bid ? 'active' : ''}`;
           boxDiv.style.borderLeftColor = getFolderColor(fid);
-          boxDiv.innerHTML = `<div class="item-info" style="padding-left:${(depth + 1) * 14}px"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>`;
+          boxDiv.innerHTML = `<div class="item-info"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>`;
           boxDiv.onclick = () => { searchHighlightPos = null; switchBox(bid); };
           list.appendChild(boxDiv);
         });
