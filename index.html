@@ -673,6 +673,7 @@
     .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; position: relative; }
     .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; --grid-font-scale: 1; }
     .grid-zoom-controls { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.96); border: 1px solid #e8e8e8; border-radius: 10px; padding: 6px 8px; z-index: 12; box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: grab; }
+    .box-location-badge { position: absolute; top: 16px; left: 16px; max-width: calc(100% - 250px); border: 1px solid #d9e8ff; background: rgba(255,255,255,.96); border-radius: 8px; padding: 6px 10px; color: #163a5f; font-size: 12px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 11; }
     .grid-zoom-controls.dragging { cursor: grabbing; }
     .zoom-drag-handle { color: #999; font-size: 14px; padding: 0 2px; user-select: none; }
     .zoom-label { font-size: 12px; color: #666; min-width: 46px; text-align: center; }
@@ -870,6 +871,7 @@
           <button class="zoom-btn" onclick="zoomGridIn()" title="放大">＋</button>
           <button class="zoom-btn" onclick="resetGridZoom()" title="重置">⟲</button>
         </div>
+        <div id="box-location-badge" class="box-location-badge hidden"></div>
         <div id="empty-tip" class="empty-tip">请在左侧选择或新增一个容器</div>
         <div id="grid" class="grid"></div>
       </div>
@@ -1625,6 +1627,7 @@
       initGridZoomControls();
       updateGridZoom();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
+      updateBoxLocationBadge();
     }
 
     function getFolderChildrenMap() {
@@ -2136,6 +2139,7 @@ ${options}`);
         currentBoxId = null;
         document.getElementById('grid').innerHTML = '';
         document.getElementById('empty-tip').style.display = 'block';
+        updateBoxLocationBadge();
       }
       selectedPositions.clear();
       save();
@@ -2205,10 +2209,25 @@ ${options}`);
       renderCollapsedNav();
     }
 
+    function updateBoxLocationBadge() {
+      const badge = document.getElementById('box-location-badge');
+      if (!badge) return;
+      if (!currentBoxId || !db.boxes[currentBoxId]) {
+        badge.classList.add('hidden');
+        badge.textContent = '';
+        return;
+      }
+      const box = db.boxes[currentBoxId];
+      const folderPath = getFolderPathName(box.folderId) || '未分类';
+      badge.textContent = `位置: ${folderPath} · 容器: ${box.name} (${box.rows}x${box.cols})`;
+      badge.classList.remove('hidden');
+    }
+
     function switchBox(id) {
       currentBoxId = id;
       selectedPositions.clear();
       document.getElementById('empty-tip').style.display = 'none';
+      updateBoxLocationBadge();
       renderGrid();
       renderBoxList();
       updatePanel();
