@@ -251,25 +251,43 @@
     .mini-tree-title {
       font-size: 10px;
       color: #9dc8ef;
-      text-align: center;
+      text-align: left;
       margin-bottom: 2px;
+      padding-left: 2px;
     }
     .mini-tree-node {
-      border: 1px solid rgba(162,201,255,.3);
+      border: 1px solid rgba(112,164,220,.22);
       border-radius: 6px;
-      padding: 4px;
-      text-align: center;
+      padding: 4px 5px;
+      text-align: left;
       font-size: 10px;
       color: #d4ecff;
-      background: rgba(18,39,66,.85);
+      background: rgba(18,39,66,.72);
       cursor: pointer;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      line-height: 1.2;
+    }
+    .mini-tree-prefix {
+      color: rgba(155,206,255,.7);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: -0.5px;
+      flex: 0 0 auto;
+    }
+    .mini-tree-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
     }
     .mini-tree-node.folder { font-weight: 600; }
-    .mini-tree-node.box { margin-left: 14px; font-size: 9px; }
-    .mini-tree-arrow { margin-right: 4px; color:#8fc7ff; }
+    .mini-tree-node.box { font-size: 9px; color: #c7e5ff; }
+    .mini-tree-arrow { margin-right: 2px; color:#8fc7ff; flex: 0 0 auto; }
     .mini-tree-node.active {
       border-color: #69c0ff;
       background: rgba(24,144,255,.45);
@@ -1477,25 +1495,49 @@
       const wrap = document.getElementById('collapsed-nav');
       if (!wrap) return;
       const childrenMap = getFolderChildrenMap();
-      let html = '<div class="mini-tree-title">位置</div>';
+      let html = '<div class="mini-tree-title">位置树</div>';
 
-      const renderNode = (fid, depth) => {
-        const fname = db.folders[fid]?.name || fid;
+      const prefixFor = (depth, isLast) => {
+        if (depth <= 0) return '';
+        return `${'│ '.repeat(Math.max(depth - 1, 0))}${isLast ? '└ ' : '├ '}`;
+      };
+
+      const renderNode = (fid, depth, isLast) => {
+        const folder = db.folders[fid] || {};
+        const fname = folder.name || fid;
         const expanded = collapsedNavExpandedFolders.has(fid);
-        const boxes = Object.keys(db.boxes).filter(bid => db.boxes[bid]?.folderId === fid);
-        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="handleCollapsedFolderClick('${fid}')" title="${fname}" style="padding-left:${6 + depth * 10}px"><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span>${fname}</div>`;
+        const childFolders = childrenMap[fid] || [];
+        const boxes = Object.keys(db.boxes)
+          .filter(bid => db.boxes[bid]?.folderId === fid)
+          .sort((a, b) => (db.boxes[a]?.name || '').localeCompare(db.boxes[b]?.name || '', 'zh-CN'));
+        const label = `${fname} (${boxes.length})`;
+        const prefix = prefixFor(depth, isLast);
 
-        if (expanded) {
-          (childrenMap[fid] || []).forEach(childId => renderNode(childId, depth + 1));
-          boxes.forEach(bid => {
-            const bname = (db.boxes[bid]?.name || bid) + '(容器)';
-            html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${bname}" style="padding-left:${18 + depth * 10}px">${bname}</div>`;
-          });
-          if (!boxes.length && !(childrenMap[fid] || []).length) html += `<div class="mini-tree-node box" title="空" style="padding-left:${18 + depth * 10}px">(空)</div>`;
+        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="handleCollapsedFolderClick('${fid}')" title="${getFolderPathName(fid)}"><span class="mini-tree-prefix">${prefix}</span><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span><span class="mini-tree-text">${label}</span></div>`;
+
+        if (!expanded) return;
+
+        childFolders.forEach((childId, idx) => {
+          const childIsLast = idx === childFolders.length - 1 && boxes.length === 0;
+          renderNode(childId, depth + 1, childIsLast);
+        });
+
+        boxes.forEach((bid, idx) => {
+          const b = db.boxes[bid] || {};
+          const bname = b.name || bid;
+          const meta = `${b.rows || 8}x${b.cols || 12}`;
+          const boxPrefix = prefixFor(depth + 1, idx === boxes.length - 1);
+          html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${getFolderPathName(fid)} / ${bname}"><span class="mini-tree-prefix">${boxPrefix}</span><span class="mini-tree-arrow">├</span><span class="mini-tree-text">${bname} · ${meta}</span></div>`;
+        });
+
+        if (!childFolders.length && !boxes.length) {
+          const emptyPrefix = prefixFor(depth + 1, true);
+          html += `<div class="mini-tree-node box" title="空"><span class="mini-tree-prefix">${emptyPrefix}</span><span class="mini-tree-arrow">·</span><span class="mini-tree-text">(空)</span></div>`;
         }
       };
 
-      (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
+      const roots = childrenMap[null] || [];
+      roots.forEach((fid, idx) => renderNode(fid, 0, idx === roots.length - 1));
       wrap.innerHTML = html;
     }
 
