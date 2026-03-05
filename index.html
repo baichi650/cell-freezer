@@ -463,6 +463,39 @@
     .tool-status { color: #ffd666; font-weight: 700; }
     .tool-status.ok { color: #95de64; }
     .tool-mini-log { color: #d6e8ff; font-size: 13px; }
+        .top-utility-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .utility-search {
+      flex: 1 1 520px;
+      min-width: 280px;
+      position: relative;
+    }
+    .tool-status-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #ffd591;
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: #fff7e6;
+      color: #ad6800;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .tool-status-badge.ok {
+      border-color: #b7eb8f;
+      background: #f6ffed;
+      color: #135200;
+    }
+    .tool-status-badge.off {
+      border-color: #ffa39e;
+      background: #fff1f0;
+      color: #a8071a;
+    }
     .toolbar-toggle-bar {
       display: flex;
       justify-content: flex-end;
@@ -637,16 +670,18 @@
 
   <main class="main">
     <div class="header">
-      <div class="toolbar-toggle-bar">
-        <button id="toolbar-toggle-btn" class="toolbar-toggle-btn" onclick="toggleTopToolbar()">展开工具栏</button>
-      </div>
-      <div id="top-toolbar" class="tool-sketch hidden">
-        <div class="tool-row">
-          <span class="tool-label">[ 🔎 全局搜索：细胞名/代数/条码 ]</span>
-          <input id="global-search" class="tool-search" type="text" placeholder="输入关键词快速定位样本" oninput="handleGlobalSearch()" />
+      <div class="top-utility-bar">
+        <div class="search-wrap utility-search">
+          <input id="global-search" class="tool-search" type="text" placeholder="🔎 全局搜索：细胞名/代数/条码" oninput="handleGlobalSearch()" />
           <div id="search-dd" class="search-dd"></div>
         </div>
+        <span id="backup-status" class="tool-status-badge">⚠️ 未授权目录</span>
+        <div class="toolbar-toggle-bar" style="margin-bottom:0;">
+          <button id="toolbar-toggle-btn" class="toolbar-toggle-btn" onclick="toggleTopToolbar()">展开工具栏</button>
+        </div>
+      </div>
 
+      <div id="top-toolbar" class="tool-sketch hidden">
         <div class="tool-row" id="main-actions-card">
           <span class="tool-label">数据操作:</span>
           <button class="tool-link-btn" onclick="triggerImport()">导入</button>
@@ -679,8 +714,7 @@
         </div>
 
         <div class="tool-row">
-          <span class="tool-label">状态:</span>
-          <span id="backup-status" class="tool-status">⚠️ 未授权目录</span>
+          <span class="tool-label">快捷操作:</span>
           <button class="tool-link-btn" onclick="enableFolderAutoBackup()">立即授权</button>
           <button class="tool-link-btn" onclick="changeBackupFolder()">更改目录</button>
           <button class="tool-link-btn" onclick="runImmediateBackup()">立即备份</button>
@@ -873,12 +907,12 @@
     }
 
     function setBackupStatus(text, mode = 'local') {
-      const targets = [document.getElementById('backup-status'), document.getElementById('backup-status-top')].filter(Boolean);
+      const targets = [document.getElementById('backup-status')].filter(Boolean);
       targets.forEach(el => {
         el.textContent = text;
-        el.classList.remove('local', 'off', 'ok', 'tool-status');
-        el.classList.add('tool-status');
+        el.classList.remove('ok', 'off');
         if (mode === 'folder') el.classList.add('ok');
+        if (mode === 'off') el.classList.add('off');
       });
       const dirTop = document.getElementById('backup-dir-top');
       if (dirTop) dirTop.textContent = AUTO_BACKUP_DIR;
