@@ -203,6 +203,74 @@
       margin-bottom: 8px;
     }
 
+
+    .sidebar {
+      width: 340px;
+      background: #0b1220;
+      color: #fff;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+      border-right: 1px solid rgba(255,255,255,.06);
+    }
+    .sidebar-panel {
+      border: 1px solid rgba(169,199,255,.35);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(7, 20, 38, .9);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .sidebar-head { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .sidebar-title { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .sidebar-sub { font-size: 13px; font-weight: 700; }
+    .sidebar-search {
+      width: 100%;
+      border: 1px solid rgba(162,201,255,.35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #0f2036;
+      color: #e8f4ff;
+    }
+    .sidebar-search::placeholder { color: #8ab7e1; }
+    .side-actions, .side-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .side-btn {
+      border: 1px solid rgba(162,201,255,.35);
+      border-radius: 8px;
+      background: #132742;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .side-btn:hover { border-color: #69c0ff; }
+    .side-filter {
+      border-radius: 999px;
+      border: 1px solid rgba(162,201,255,.35);
+      background: #132742;
+      color: #cde9ff;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .side-filter.active {
+      color: #fff;
+      border-color: #69c0ff;
+      background: rgba(24,144,255,.45);
+    }
+    .folder-list { max-height: 280px; }
+    .box-list { min-height: 180px; max-height: 280px; }
+    .item.tree-item { background: rgba(17,42,69,.85); }
+    .tree-arrow { font-size: 11px; color: #9fd1ff; margin-right: 6px; }
+
     .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
     .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
     .header .row { flex-wrap: wrap; }
@@ -466,19 +534,26 @@
   </style>
 </head>
 <body>
-  <aside class="sidebar">
+    <aside class="sidebar">
     <div class="logo">🧪 freezer-1.3</div>
 
-    <div class="section-title">位置文件夹</div>
-    <div id="folder-list" class="list folder-list"></div>
-    <div class="row">
-      <button class="btn" onclick="addFolder()" style="flex:1">+ 新增文件夹</button>
-    </div>
+    <section class="sidebar-panel" style="flex:1;">
+      <div class="sidebar-sub">位置 (Location)</div>
+      <input id="folder-search" class="sidebar-search" type="text" placeholder="🔎 搜索位置..." oninput="handleFolderSidebarSearch()" />
+      <div id="folder-list" class="list folder-list"></div>
+      <div class="side-actions">
+        <button class="side-btn" onclick="addFolder()">+ 新增文件夹</button>
+        <button class="side-btn" onclick="sortFoldersByName()">管理/排序</button>
+      </div>
+    </section>
 
-    <div class="section-title">容器列表</div>
-    <div id="box-list" class="list box-list"></div>
-
-    <div style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px;">
+    <section class="sidebar-panel" style="flex:1;">
+      <div class="sidebar-sub">容器 (Containers)</div>
+      <div class="side-inline" style="justify-content:space-between;align-items:center;">
+        <div id="box-filter-chips" class="side-inline"></div>
+        <input id="box-search" class="sidebar-search" style="max-width:150px;padding:6px 8px;" type="text" placeholder="🔎 搜索容器..." oninput="handleBoxSidebarSearch()" />
+      </div>
+      <div id="box-list" class="list box-list"></div>
       <select id="new-box-folder" class="select-dark"></select>
       <select id="new-box-specs" class="select-dark">
         <option value="8,12" selected>规格: 96孔板 (8x12)</option>
@@ -486,8 +561,8 @@
         <option value="10,10">规格: 10x10 (100格)</option>
         <option value="12,6">规格: 12x6 (72格)</option>
       </select>
-      <button class="btn primary" style="width:100%" onclick="addBox()">+ 新增容器</button>
-    </div>
+      <button class="btn primary" style="width:100%" onclick="addBox()">+ 新建容器</button>
+    </section>
   </aside>
 
   <main class="main">
@@ -602,6 +677,9 @@
     let searchHighlightPos = null;
     let draggedItemPos = null;
     let currentOverviewFolderId = 'all';
+    let folderSearchKeyword = '';
+    let boxSearchKeyword = '';
+    let boxFilterMode = 'all';
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
     const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
@@ -984,6 +1062,7 @@
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderBoxFilters();
       updateWarningBoard();
       renderOverviewFolderStrip();
       updateOverview();
@@ -1022,6 +1101,55 @@
         `<div class="overview-chip ${currentOverviewFolderId === 'all' ? 'active' : ''}" onclick="setOverviewFolderFilter('all')">全部文件夹</div>`,
         ...folderIds.map(fid => `<div class="overview-chip ${currentOverviewFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setOverviewFolderFilter('${fid}')">${db.folders[fid].name}</div>`)
       ].join('');
+    }
+
+
+    function handleFolderSidebarSearch() {
+      folderSearchKeyword = (document.getElementById('folder-search')?.value || '').trim().toLowerCase();
+      renderFolderList();
+    }
+
+    function handleBoxSidebarSearch() {
+      boxSearchKeyword = (document.getElementById('box-search')?.value || '').trim().toLowerCase();
+      renderBoxList();
+    }
+
+    function sortFoldersByName() {
+      const entries = Object.entries(db.folders).sort((a, b) => {
+        if (a[0] === 'default') return -1;
+        if (b[0] === 'default') return 1;
+        return (a[1].name || '').localeCompare(b[1].name || '', 'zh-CN');
+      });
+      db.folders = Object.fromEntries(entries);
+      save();
+      renderFolderOptions();
+      renderFolderList();
+      renderBoxList();
+    }
+
+    function getLowInventoryNames() {
+      const counts = {};
+      Object.values(db.boxes).forEach(b => Object.values(b.vials || {}).forEach(v => {
+        if (v && v.name) counts[v.name] = (counts[v.name] || 0) + 1;
+      }));
+      return new Set(Object.keys(counts).filter(name => counts[name] <= 3));
+    }
+
+    function renderBoxFilters() {
+      const el = document.getElementById('box-filter-chips');
+      if (!el) return;
+      const lowNames = getLowInventoryNames();
+      const lowBoxCount = Object.values(db.boxes).filter(b => Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name))).length;
+      el.innerHTML = `
+        <button class="side-filter ${boxFilterMode === 'all' ? 'active' : ''}" onclick="setBoxFilterMode('all')">全部 ${Object.keys(db.boxes).length}</button>
+        <button class="side-filter ${boxFilterMode === 'low' ? 'active' : ''}" onclick="setBoxFilterMode('low')">低库存 ${lowBoxCount}</button>
+      `;
+    }
+
+    function setBoxFilterMode(mode) {
+      boxFilterMode = mode;
+      renderBoxFilters();
+      renderBoxList();
     }
 
     function addFolder() {
@@ -1091,19 +1219,22 @@
 
       const totalBoxes = Object.keys(db.boxes).length;
       const allItem = document.createElement('div');
-      allItem.className = `item ${currentFolderId === 'all' ? 'active' : ''}`;
-      allItem.innerHTML = `<div class="item-info">全部文件夹</div><div class="item-tag">${totalBoxes}</div>`;
+      allItem.className = `item tree-item ${currentFolderId === 'all' ? 'active' : ''}`;
+      allItem.innerHTML = `<div class="item-info"><span class="tree-arrow">▾</span>全部位置</div><div class="item-tag">${totalBoxes}</div>`;
       allItem.onclick = () => setFolderFilter('all');
       list.appendChild(allItem);
 
-      Object.keys(db.folders).forEach(id => {
+      Object.keys(db.folders).filter(id => {
+        if (!folderSearchKeyword) return true;
+        return (db.folders[id].name || '').toLowerCase().includes(folderSearchKeyword);
+      }).forEach(id => {
         const folder = db.folders[id];
         const count = Object.values(db.boxes).filter(b => b.folderId === id).length;
         const div = document.createElement('div');
-        div.className = `item folder-item ${currentFolderId === id ? 'active' : ''}`;
+        div.className = `item folder-item tree-item ${currentFolderId === id ? 'active' : ''}`;
         div.style.borderLeftColor = getFolderColor(id);
         div.innerHTML = `
-          <div class="item-info">${folder.name}<span class="item-tag">${count}</span></div>
+          <div class="item-info"><span class="tree-arrow">▸</span>${folder.name}<span class="item-tag">${count}</span></div>
           <div>
             <button class="mini-btn" title="重命名" onclick="renameFolder('${id}',event)">✎</button>
             <button class="mini-btn danger" title="删除" onclick="deleteFolder('${id}',event)">🗑</button>
@@ -1191,7 +1322,14 @@ ${options}`);
     function renderBoxList() {
       const list = document.getElementById('box-list');
       list.innerHTML = '';
-      const ids = Object.keys(db.boxes);
+      renderBoxFilters();
+      const lowNames = getLowInventoryNames();
+      const ids = Object.keys(db.boxes).filter(id => {
+        const b = db.boxes[id];
+        if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return false;
+        if (boxFilterMode === 'low') return Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name));
+        return true;
+      });
 
       const renderBoxItem = (id) => {
         const b = db.boxes[id];
