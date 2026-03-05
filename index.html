@@ -680,8 +680,9 @@
     .cell.drag-over { border: 2px dashed var(--primary); background: #e6f7ff !important; }
     .cell.highlight { animation: pulse 1s infinite alternate; border: 2px solid var(--warning) !important; }
     .cell-label {
-      max-width: 44px;
-      padding: 1px 4px;
+      width: 100%;
+      max-width: 100%;
+      padding: 0 3px;
       border-radius: 4px;
       background: rgba(255,255,255,.82);
       border: 1px solid rgba(0,0,0,.08);
@@ -689,20 +690,9 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: calc(11px * var(--grid-font-scale));
-      line-height: 1.2;
+      line-height: 1.15;
       text-align: center;
-    }
-    .cell-sub {
-      margin-top: 2px;
-      max-width: 40px;
-      padding: 0 4px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.6);
-      font-size: calc(8px * var(--grid-font-scale));
-      line-height: 1.2;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      display: block;
     }
     .cell.empty .cell-label {
       background: #fafafa;
@@ -1996,7 +1986,7 @@ ${options}`);
             el.classList.add('occupied');
             el.style.backgroundColor = stringToHslColor(vial.name);
             el.title = `位置: ${pos}\n名称: ${vial.name}\n代数: ${vial.p || '-'}\n日期: ${vial.date || '-'}`;
-            el.innerHTML = `<div class="cell-label">${vial.name}</div><div class="cell-sub">${vial.p || 'P-'}</div>`;
+            el.innerHTML = `<div class="cell-label">${vial.name}</div>`;
             el.setAttribute('draggable', 'true');
             el.addEventListener('dragstart', (e) => handleDragStart(e, pos));
             el.addEventListener('dragend', handleDragEnd);
