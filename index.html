@@ -1921,34 +1921,60 @@
 
       const childrenMap = getFolderChildrenMap();
       const key = folderSearchKeyword.trim().toLowerCase();
-      const visible = new Set();
+      const lowNames = getLowInventoryNames();
+      const visibleFolders = new Set();
+      const visibleBoxesByFolder = {};
+
+      Object.keys(db.boxes).forEach(bid => {
+        const b = db.boxes[bid];
+        if (!b) return;
+        if (boxFilterMode === 'low') {
+          const hasLow = Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name));
+          if (!hasLow) return;
+        }
+        if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return;
+        const fid = b.folderId || 'default';
+        if (!visibleBoxesByFolder[fid]) visibleBoxesByFolder[fid] = [];
+        visibleBoxesByFolder[fid].push(bid);
+      });
+
+      const markVisibleWithAncestors = (fid) => {
+        let cur = fid;
+        const guard = new Set();
+        while (cur && db.folders[cur] && !guard.has(cur)) {
+          visibleFolders.add(cur);
+          collapsedNavExpandedFolders.add(cur);
+          guard.add(cur);
+          cur = db.folders[cur].parentId || null;
+        }
+      };
+
       if (key) {
         getOrderedFolderIds().forEach(fid => {
           const name = (db.folders[fid]?.name || '').toLowerCase();
           const path = getFolderPathName(fid).toLowerCase();
-          if (name.includes(key) || path.includes(key)) {
-            let cur = fid;
-            const guard = new Set();
-            while (cur && db.folders[cur] && !guard.has(cur)) {
-              visible.add(cur);
-              collapsedNavExpandedFolders.add(cur);
-              guard.add(cur);
-              cur = db.folders[cur].parentId || null;
-            }
+          if (name.includes(key) || path.includes(key)) markVisibleWithAncestors(fid);
+        });
+        Object.keys(visibleBoxesByFolder).forEach(fid => {
+          const matchedBoxes = visibleBoxesByFolder[fid].filter(bid => (db.boxes[bid]?.name || '').toLowerCase().includes(key));
+          if (matchedBoxes.length) {
+            visibleBoxesByFolder[fid] = matchedBoxes;
+            markVisibleWithAncestors(fid);
+          } else {
+            delete visibleBoxesByFolder[fid];
           }
         });
       }
 
       const renderNode = (fid, depth) => {
-        if (key && !visible.has(fid)) return;
+        if (key && !visibleFolders.has(fid)) return;
         const folder = db.folders[fid];
         const descendants = new Set(getDescendantFolderIds(fid));
         const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
-        const childIds = (childrenMap[fid] || []).filter(cid => !key || visible.has(cid));
+        const childIds = (childrenMap[fid] || []).filter(cid => !key || visibleFolders.has(cid));
+        const folderBoxIds = (visibleBoxesByFolder[fid] || []).slice().sort((a, b) => (db.boxes[a]?.name || '').localeCompare(db.boxes[b]?.name || '', 'zh-CN'));
         const expanded = collapsedNavExpandedFolders.has(fid) || !!key;
-        const directBoxCount = Object.values(db.boxes).filter(b => b.folderId === fid).length;
-        const hasChildren = childIds.length > 0;
-        const expandable = hasChildren || directBoxCount > 0;
+        const expandable = childIds.length > 0 || folderBoxIds.length > 0;
 
         const div = document.createElement('div');
         div.className = `item folder-item tree-item ${currentFolderId === fid ? 'active' : ''}`;
@@ -1973,7 +1999,19 @@
         div.onclick = () => handleFolderTreeItemClick(fid, expandable);
         list.appendChild(div);
 
-        if (expanded) childIds.forEach(cid => renderNode(cid, depth + 1));
+        if (!expanded) return;
+        childIds.forEach(cid => renderNode(cid, depth + 1));
+
+        folderBoxIds.forEach(bid => {
+          const b = db.boxes[bid];
+          if (!b) return;
+          const boxDiv = document.createElement('div');
+          boxDiv.className = `item tree-item ${currentBoxId === bid ? 'active' : ''}`;
+          boxDiv.style.borderLeftColor = getFolderColor(fid);
+          boxDiv.innerHTML = `<div class="item-info" style="padding-left:${(depth + 1) * 14}px"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>`;
+          boxDiv.onclick = () => { searchHighlightPos = null; switchBox(bid); };
+          list.appendChild(boxDiv);
+        });
       };
 
       (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
