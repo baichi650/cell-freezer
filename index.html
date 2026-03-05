@@ -360,7 +360,6 @@
     .item.tree-item { background: rgba(17,42,69,.85); }
     .tree-arrow { font-size: 11px; color: #9fd1ff; margin-right: 6px; }
     .tree-arrow-btn { cursor: pointer; user-select: none; display: inline-flex; width: 12px; justify-content: center; }
-    .tree-prefix { color: #7fb0da; margin-right: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; white-space: pre; }
 
     .folder-sort-tip {
       font-size: 11px;
@@ -2043,7 +2042,6 @@
       const visibleFolders = new Set();
       const visibleBoxesByFolder = {};
 
-      const buildTreePrefix = (lineage, isLast) => `${lineage.slice(0, -1).map(hasNext => hasNext ? '│ ' : '  ').join('')}${isLast ? '└ ' : '├ '}`;
 
       Object.keys(db.boxes).forEach(bid => {
         const b = db.boxes[bid];
@@ -2082,7 +2080,7 @@
         });
       }
 
-      const renderNode = (fid, depth, lineage = []) => {
+      const renderNode = (fid, depth) => {
         if (key && !visibleFolders.has(fid)) return;
         const folder = db.folders[fid];
         const descendants = new Set(getDescendantFolderIds(fid));
@@ -2100,10 +2098,10 @@
           : '';
         const arrow = expandable ? (expanded ? '▾' : '▸') : '•';
         const arrowClick = expandable ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
-        const folderPrefix = buildTreePrefix(lineage, lineage.length ? !lineage[lineage.length - 1] : true);
+        const textSize = Math.max(11, 14 - depth * 1);
         div.innerHTML = `
-          <div class="item-info" style="padding-left:${depth * 8}px">
-            <span class="tree-prefix">${folderPrefix}</span><span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}
+          <div class="item-info" style="padding-left:${depth * 12}px">
+            <span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span><span style="font-size:${textSize}px">${folder.name}</span><span class="item-tag">${count}</span>${sortOps}
           </div>
           <div>
             <button class="mini-btn" title="重命名" onclick="renameFolder('${fid}',event)">✎</button>
@@ -2117,7 +2115,7 @@
         list.appendChild(div);
 
         if (!expanded) return;
-        childIds.forEach((cid, idx) => renderNode(cid, depth + 1, [...lineage, idx < childIds.length - 1 || folderBoxIds.length > 0]));
+        childIds.forEach((cid) => renderNode(cid, depth + 1));
 
         folderBoxIds.forEach(bid => {
           const b = db.boxes[bid];
@@ -2125,9 +2123,9 @@
           const boxDiv = document.createElement('div');
           boxDiv.className = `item box-item tree-item ${currentBoxId === bid ? 'active' : ''}`;
           boxDiv.style.borderLeftColor = getFolderColor(fid);
-          const boxPrefix = buildTreePrefix([...lineage, false], true);
+          const boxTextSize = Math.max(11, 14 - (depth + 1) * 1);
           boxDiv.innerHTML = `
-            <div class="item-info" style="padding-left:${(depth + 1) * 8}px"><span class="tree-prefix">${boxPrefix}</span><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>
+            <div class="item-info" style="padding-left:${(depth + 1) * 12}px"><span class="tree-arrow">▸</span><span style="font-size:${boxTextSize}px">${b.name}</span><span class="item-tag">${b.rows}x${b.cols}</span></div>
             <div>
               <button class="mini-btn" title="重命名" onclick="renameBox('${bid}',event)">✎</button>
               <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${bid}',event)">🗑</button>
@@ -2138,8 +2136,7 @@
         });
       };
 
-      const roots = childrenMap[null] || [];
-      roots.forEach((fid, idx) => renderNode(fid, 0, [idx < roots.length - 1]));
+      (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
     }
 
     function renderBoxFolderStrip() {
