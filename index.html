@@ -1361,6 +1361,13 @@
       renderCollapsedNav();
     }
 
+    function handleCollapsedFolderClick(folderId) {
+      setFolderFilter(folderId);
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderCollapsedNav();
+    }
+
     function renderCollapsedNav() {
       const wrap = document.getElementById('collapsed-nav');
       if (!wrap) return;
@@ -1371,7 +1378,7 @@
         const fname = db.folders[fid]?.name || fid;
         const expanded = collapsedNavExpandedFolders.has(fid);
         const boxes = Object.keys(db.boxes).filter(bid => db.boxes[bid]?.folderId === fid);
-        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="setFolderFilter('${fid}')" title="${fname}"><span class="mini-tree-arrow" onclick="toggleCollapsedNavFolder('${fid}',event)">${expanded ? '▾' : '▸'}</span>${fname}</div>`;
+        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="handleCollapsedFolderClick('${fid}')" title="${fname}"><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span>${fname}</div>`;
 
         if (expanded) {
           boxes.forEach(bid => {
