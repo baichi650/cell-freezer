@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>细胞冻存管理系统 v1.3</title>
+  <title>freezer-1.3</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -33,7 +33,6 @@
       gap: 10px;
       overflow: hidden;
     }
-    .logo { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
     .section-title { font-size: 12px; opacity: .8; margin: 6px 0 2px; }
     .list { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 8px; overflow: auto; }
     .folder-list { max-height: 132px; }
@@ -189,6 +188,7 @@
       padding: 10px 12px;
       cursor: pointer;
       font-size: 13px;
+      cursor: pointer;
     }
     .btn:hover { border-color: var(--primary); color: var(--primary); }
     .btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -203,8 +203,293 @@
       margin-bottom: 8px;
     }
 
+
+    .sidebar {
+      width: 340px;
+      background: #0b1220;
+      color: #fff;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+      border-right: 1px solid rgba(255,255,255,.06);
+    }
+    
+    .sidebar {
+      position: relative;
+      transition: width .2s ease, padding .2s ease;
+    }
+    .sidebar-toggle {
+      position: absolute;
+      right: -12px;
+      top: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid rgba(162,201,255,.6);
+      background: #10233d;
+      color: #d5ecff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    #collapsed-nav {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      border: 1px solid rgba(169,199,255,.3);
+      border-radius: 10px;
+      padding: 8px 4px;
+      background: rgba(7,20,38,.9);
+      overflow: auto;
+      gap: 6px;
+      flex-direction: column;
+    }
+    .mini-tree-title {
+      font-size: 10px;
+      color: #9dc8ef;
+      text-align: left;
+      margin-bottom: 2px;
+      padding-left: 2px;
+    }
+    .mini-tree-node {
+      border: 1px solid rgba(112,164,220,.22);
+      border-radius: 6px;
+      padding: 3px 4px;
+      text-align: left;
+      font-size: 10px;
+      color: #d4ecff;
+      background: rgba(18,39,66,.72);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      line-height: 1.2;
+    }
+    .mini-tree-prefix {
+      color: rgba(155,206,255,.7);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: -0.5px;
+      flex: 0 0 auto;
+    }
+    .mini-tree-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .mini-tree-node.folder { font-weight: 600; }
+    .mini-tree-node.box { font-size: 9px; color: #c7e5ff; }
+    .mini-tree-arrow { margin-right: 2px; color:#8fc7ff; flex: 0 0 auto; }
+    .mini-tree-node.active {
+      border-color: #69c0ff;
+      background: rgba(24,144,255,.45);
+      color: #fff;
+      font-weight: 700;
+    }
+    body.sidebar-collapsed .sidebar {
+      width: 76px;
+      padding: 12px 8px;
+    }
+    body.sidebar-collapsed .sidebar-panel {
+      display: none;
+    }
+    body.sidebar-collapsed #collapsed-nav {
+      display: flex;
+    }
+.sidebar-panel {
+      border: 1px solid rgba(169,199,255,.35);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(7, 20, 38, .9);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .sidebar-head { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .sidebar-title { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .sidebar-sub { font-size: 13px; font-weight: 700; color: #d8eeff; }
+    .sidebar-search {
+      width: 100%;
+      border: 1px solid rgba(162,201,255,.35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #0f2036;
+      color: #e8f4ff;
+    }
+    .sidebar-search::placeholder { color: #8ab7e1; }
+    .side-actions, .side-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .side-btn {
+      border: 1px solid rgba(162,201,255,.35);
+      border-radius: 8px;
+      background: #132742;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .side-btn:hover { border-color: #69c0ff; }
+    .side-filter {
+      border-radius: 999px;
+      border: 1px solid rgba(162,201,255,.35);
+      background: #132742;
+      color: #cde9ff;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .side-filter.active {
+      color: #fff;
+      border-color: #69c0ff;
+      background: rgba(24,144,255,.45);
+    }
+    .folder-list { max-height: 280px; }
+    .box-list { min-height: 180px; max-height: 280px; }
+    .item.tree-item { background: rgba(17,42,69,.85); }
+    .tree-arrow { font-size: 11px; color: #9fd1ff; margin-right: 6px; }
+    .tree-arrow-btn { cursor: pointer; user-select: none; display: inline-flex; width: 12px; justify-content: center; }
+
+    .folder-sort-tip {
+      font-size: 11px;
+      color: rgba(216,238,255,.78);
+      margin-top: -2px;
+      padding-left: 4px;
+      border-left: 2px solid rgba(121,190,255,.45);
+    }
+    .folder-sort-ops {
+      display: inline-flex;
+      gap: 4px;
+      margin-left: 6px;
+    }
+
     .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
-    .header { display: flex; gap: 10px; align-items: center; }
+    .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+    .header .row { flex-wrap: wrap; }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-top-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .search-wrap.compact {
+      flex: 0 1 420px;
+      max-width: 420px;
+      min-width: 300px;
+    }
+    .toolbar-card {
+      border: 1px solid #e6e6e6;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toolbar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .toolbar-title {
+      font-size: 12px;
+      color: #777;
+      font-weight: 600;
+    }
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+    .backup-actions {
+      align-items: flex-start;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      gap: 12px;
+    }
+    .backup-btns {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .backup-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 8px;
+      min-width: 320px;
+    }
+    .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border: 1px solid transparent;
+    }
+    .meta-pill.dir {
+      color: #0958d9;
+      background: #e6f4ff;
+      border-color: #91caff;
+    }
+    .meta-pill.state {
+      color: #135200;
+      background: #f6ffed;
+      border-color: #b7eb8f;
+    }
+    .meta-pill.state.local {
+      color: #ad6800;
+      background: #fff7e6;
+      border-color: #ffd591;
+    }
+    .meta-pill.state.off {
+      color: #a8071a;
+      background: #fff1f0;
+      border-color: #ffa39e;
+    }
+    .btn.compact {
+      padding: 7px 10px;
+      font-size: 12px;
+      border-radius: 7px;
+    }
+    .toolbar-collapsed-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    @media (max-width: 1080px) {
+      .backup-actions {
+        flex-wrap: wrap;
+      }
+      .backup-meta {
+        min-width: 100%;
+      }
+    }
     .search-wrap { flex: 1; position: relative; }
     .search { width: 100%; padding: 12px; border: 1px solid #d9d9d9; border-radius: 8px; }
     .search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(24,144,255,.2); }
@@ -230,10 +515,170 @@
     .search-item:hover { background: #f0f7ff; }
     .loc-tag { font-size: 11px; background: #f5f5f5; border-radius: 4px; color: #666; padding: 2px 6px; }
 
-    .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
+
+    .tool-sketch {
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 10px;
+      background: #0e1117;
+      color: #fff;
+      padding: 10px 12px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    }
+    .tool-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.16);
+    }
+    .tool-row:last-child { border-bottom: none; }
+    .tool-label { font-weight: 700; color: #f4f7ff; }
+    .tool-search {
+      width: min(640px, 100%);
+      border: 1px solid rgba(164,205,255,.5);
+      border-radius: 8px;
+      background: #111b2b;
+      color: #fff;
+      padding: 9px 11px;
+      font-size: 14px;
+    }
+    .tool-search::placeholder { color: #9dc3ef; }
+    .tool-link-btn {
+      border: 1px solid rgba(164,205,255,.45);
+      border-radius: 7px;
+      background: transparent;
+      color: #fff;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .tool-link-btn:hover { border-color: #69c0ff; color: #69c0ff; }
+    .tool-select {
+      border: 1px solid rgba(164,205,255,.45);
+      border-radius: 7px;
+      background: #121d2f;
+      color: #fff;
+      padding: 5px 8px;
+      font-size: 13px;
+    }
+    .tool-status { color: #ffd666; font-weight: 700; }
+    .tool-status.ok { color: #95de64; }
+    .tool-mini-log { color: #d6e8ff; font-size: 13px; }
+        .top-utility-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .utility-search {
+      flex: 1 1 520px;
+      min-width: 280px;
+      position: relative;
+    }
+    .tool-status-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #ffd591;
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: #fff7e6;
+      color: #ad6800;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .tool-status-badge.ok {
+      border-color: #b7eb8f;
+      background: #f6ffed;
+      color: #135200;
+    }
+    .tool-status-badge.off {
+      border-color: #ffa39e;
+      background: #fff1f0;
+      color: #a8071a;
+    }
+    .toolbar-toggle-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+    .toolbar-toggle-btn {
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 8px;
+      background: #0e1117;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .toolbar-toggle-btn:hover {
+      border-color: #69c0ff;
+      color: #69c0ff;
+    }
+
+
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal {
+      width: min(520px, calc(100vw - 24px));
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 18px 48px rgba(0,0,0,.25);
+      overflow: hidden;
+    }
+    .modal-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .modal-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-foot {
+      padding: 12px 14px;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-field label {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .modal-field input, .modal-field select {
+      width: 100%;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+        .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
     .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-    .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
-    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; }
+    .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; position: relative; }
+    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; --grid-font-scale: 1; }
+    .grid-zoom-controls { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.96); border: 1px solid #e8e8e8; border-radius: 10px; padding: 6px 8px; z-index: 12; box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: grab; }
+    .grid-zoom-controls.dragging { cursor: grabbing; }
+    .zoom-drag-handle { color: #999; font-size: 14px; padding: 0 2px; user-select: none; }
+    .zoom-label { font-size: 12px; color: #666; min-width: 46px; text-align: center; }
+    .zoom-btn { border: 1px solid #d9d9d9; border-radius: 6px; background: #fff; width: 28px; height: 28px; line-height: 1; cursor: pointer; }
+    .zoom-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .zoom-slider { width: 120px; accent-color: var(--primary); cursor: pointer; }
     .empty-tip { color: #999; margin-top: 40px; }
 
     .cell {
@@ -256,35 +701,31 @@
     .cell.drag-over { border: 2px dashed var(--primary); background: #e6f7ff !important; }
     .cell.highlight { animation: pulse 1s infinite alternate; border: 2px solid var(--warning) !important; }
     .cell-label {
-      max-width: 44px;
-      padding: 1px 4px;
-      border-radius: 4px;
-      background: rgba(255,255,255,.82);
-      border: 1px solid rgba(0,0,0,.08);
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      padding: 2px 3px;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 11px;
-      line-height: 1.2;
+      white-space: normal;
+      word-break: break-word;
+      font-size: calc(11px * var(--grid-font-scale));
+      line-height: 1.05;
       text-align: center;
-    }
-    .cell-sub {
-      margin-top: 2px;
-      max-width: 40px;
-      padding: 0 4px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.6);
-      font-size: 8px;
-      line-height: 1.2;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
     }
     .cell.empty .cell-label {
-      background: #fafafa;
-      border-color: #eee;
-      font-size: 9px;
+      height: auto;
+      white-space: nowrap;
+      display: block;
+      font-size: calc(9px * var(--grid-font-scale));
       color: #999;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 0 3px;
     }
     @keyframes pulse { from { transform: scale(1);} to { transform: scale(1.12);} }
 
@@ -352,55 +793,83 @@
   </style>
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="logo">🧪 细胞冻存管理 v1.2</div>
+    <aside class="sidebar">
+    <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()" title="收起/展开导航栏">◀</button>
+    <div id="collapsed-nav"></div>
+        <section class="sidebar-panel" style="flex:1;">
+      <div class="sidebar-sub">位置 (Location)</div>
+      <input id="sidebar-search" class="sidebar-search" type="text" placeholder="🔎 搜索文件夹 / 容器..." oninput="handleUnifiedSidebarSearch()" />
+      <div class="folder-sort-tip">长按文件夹项可进入排序模式</div>
+      <div id="folder-list" class="list folder-list"></div>
 
-    <div class="section-title">位置文件夹</div>
-    <div id="folder-list" class="list folder-list"></div>
-    <div class="row">
-      <button class="btn" onclick="addFolder()" style="flex:1">+ 新增文件夹</button>
-    </div>
 
-    <div class="section-title">容器列表</div>
-    <div id="box-list" class="list box-list"></div>
-
-    <div style="border-top:1px solid rgba(255,255,255,.12);padding-top:10px;">
-      <select id="new-box-folder" class="select-dark"></select>
-      <select id="new-box-specs" class="select-dark">
-        <option value="8,12" selected>规格: 96孔板 (8x12)</option>
-        <option value="9,9">规格: 9x9 (81格)</option>
-        <option value="10,10">规格: 10x10 (100格)</option>
-        <option value="12,6">规格: 12x6 (72格)</option>
-      </select>
-      <button class="btn primary" style="width:100%" onclick="addBox()">+ 新增容器</button>
-    </div>
+      <div class="side-actions">
+        <button class="side-btn" onclick="openCreateModal()">+ 新建</button>
+      </div>
+    </section>
   </aside>
 
   <main class="main">
     <div class="header">
-      <div class="search-wrap">
-        <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
-        <div id="search-dd" class="search-dd"></div>
+      <div class="top-utility-bar">
+        <div class="search-wrap utility-search">
+          <input id="global-search" class="tool-search" type="text" placeholder="🔎 全局搜索：细胞名/代数/条码" oninput="handleGlobalSearch()" />
+          <div id="search-dd" class="search-dd"></div>
+        </div>
+        <span id="backup-status" class="tool-status-badge" onclick="handleBackupStatusClick()" title="点击进行开启/授权/关闭">⚠️ 未授权目录</span>
+        <button class="toolbar-toggle-btn" onclick="switchView('grid')">容器页面</button>
+        <button class="toolbar-toggle-btn" onclick="switchView('overview')">总览页面</button>
+        <div class="toolbar-toggle-bar" style="margin-bottom:0;">
+          <button id="toolbar-toggle-btn" class="toolbar-toggle-btn" onclick="toggleTopToolbar()">展开工具栏</button>
+        </div>
       </div>
-      <div class="row" style="flex-wrap:wrap;">
-        <button class="btn" onclick="switchView('grid')">🧱 容器页面</button>
-        <button class="btn" onclick="switchView('overview')">📊 总览页面</button>
-        <button class="btn" onclick="exportExcel()">📗 导出Excel</button>
-        <button class="btn" onclick="exportJSON()">📤 导出备份</button>
-        <button class="btn" onclick="triggerImport()">📥 导入数据</button>
-        <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
-      </div>
-      <div class="row" style="align-items:center; flex-wrap:wrap;">
-        <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
-        <button class="btn" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
-        <button class="btn" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
-        <button class="btn" onclick="disableAutoBackup()">⏹ 关闭自动备份</button>
-        <span id="backup-status" class="muted">文件夹自动备份：未授权（当前仅浏览器本地）</span>
+
+      <div id="top-toolbar" class="tool-sketch hidden">
+        <div class="tool-row" id="main-actions-card">
+          <span class="tool-label">数据操作:</span>
+          <button class="tool-link-btn" onclick="triggerImport()">导入</button>
+          <button class="tool-link-btn" onclick="exportExcel()">导出Excel</button>
+          <button class="tool-link-btn" onclick="exportJSON()">导出备份JSON</button>
+          <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
+        </div>
+
+        <div class="tool-row" id="backup-actions-card">
+          <span class="tool-label">自动备份:</span>
+          <span id="backup-dir-label" class="tool-label hidden">目录:</span>
+          <span id="backup-dir-top" class="hidden">auto-backups</span>
+          <span class="tool-label">格式:</span><span>JSON</span>
+          <span class="tool-label">频率:</span>
+          <select id="backup-frequency" class="tool-select">
+            <option value="30">30min</option>
+            <option value="15">15min</option>
+            <option value="60">60min</option>
+          </select>
+        </div>
+
+        <div class="tool-row">
+          <span class="tool-label">快捷操作:</span>
+          <button class="tool-link-btn" onclick="changeBackupFolder()">更改目录</button>
+          <button class="tool-link-btn" onclick="runImmediateBackup()">立即备份</button>
+        </div>
+
+        <details class="tool-row" style="display:block;">
+          <summary class="tool-label" style="cursor:pointer;">高级/日志（折叠，默认收起）</summary>
+          <div class="tool-mini-log" style="margin-top:8px;">- 最近备份：<span id="last-backup-log">--</span></div>
+          <div class="tool-mini-log">- ...</div>
+        </details>
       </div>
     </div>
 
     <section id="grid-view" class="content">
       <div class="view">
+        <div id="grid-zoom-controls" class="grid-zoom-controls" title="拖动可移动缩放工具条">
+          <span class="zoom-drag-handle">⠿</span>
+          <button class="zoom-btn" onclick="zoomGridOut()" title="缩小">－</button>
+          <span id="grid-zoom-label" class="zoom-label">100%</span>
+          <input id="grid-zoom-slider" class="zoom-slider" type="range" min="60" max="180" step="5" value="100" oninput="handleGridZoomSlider(this.value)" title="快速调整缩放" />
+          <button class="zoom-btn" onclick="zoomGridIn()" title="放大">＋</button>
+          <button class="zoom-btn" onclick="resetGridZoom()" title="重置">⟲</button>
+        </div>
         <div id="empty-tip" class="empty-tip">请在左侧选择或新增一个容器</div>
         <div id="grid" class="grid"></div>
       </div>
@@ -436,6 +905,70 @@
         <div id="overview-tree" class="overview-tree"></div>
       </div>
     </section>
+
+
+    <div id="create-modal-mask" class="modal-mask hidden" onclick="closeCreateModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-head">新建</div>
+        <div class="modal-body">
+          <div class="row">
+            <button class="btn" style="flex:1" onclick="closeCreateModal(); addFolder();">新建文件夹</button>
+            <button class="btn primary" style="flex:1" onclick="closeCreateModal(); addBox();">新建容器</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="add-folder-modal-mask" class="modal-mask hidden" onclick="closeAddFolderModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-head">新增文件夹</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label>文件夹名称</label>
+            <input id="add-folder-name" type="text" placeholder="例如：液氮 / -80 / 默认位置" />
+          </div>
+          <div class="modal-field">
+            <label>上级文件夹</label>
+            <select id="add-folder-parent"></select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeAddFolderModal()">取消</button>
+          <button class="btn primary" onclick="submitAddFolderModal()">创建</button>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="add-box-modal-mask" class="modal-mask hidden" onclick="closeAddBoxModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-head">新建容器</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label>容器名称</label>
+            <input id="add-box-name" type="text" placeholder="例如：96孔板-1" />
+          </div>
+          <div class="modal-field">
+            <label>位置文件夹</label>
+            <select id="add-box-folder"></select>
+          </div>
+          <div class="modal-field">
+            <label>容器规格</label>
+            <select id="add-box-spec">
+              <option value="8,12">96孔板 (8x12)</option>
+              <option value="9,9">9x9 (81格)</option>
+              <option value="10,10">10x10 (100格)</option>
+              <option value="12,6">12x6 (72格)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeAddBoxModal()">取消</button>
+          <button class="btn primary" onclick="submitAddBoxModal()">创建</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script>
@@ -447,6 +980,12 @@
     const BACKUP_HANDLE_DB = 'cell_freezer_backup_handles';
     const BACKUP_HANDLE_STORE = 'handles';
     const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
+    const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
+    const AUTO_BACKUP_AUTHORIZED_KEY = 'cell_freezer_auto_backup_authorized';
+    const AUTO_BACKUP_MODE_KEY = 'cell_freezer_auto_backup_mode';
+    const TOP_TOOLBAR_COLLAPSED_KEY = 'cell_freezer_top_toolbar_collapsed';
+    const HEADER_SECTION_COLLAPSE_KEY = 'cell_freezer_header_section_collapse_state';
+    const SIDEBAR_COLLAPSED_KEY = 'cell_freezer_sidebar_collapsed';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -455,9 +994,20 @@
     let searchHighlightPos = null;
     let draggedItemPos = null;
     let currentOverviewFolderId = 'all';
+    let folderSearchKeyword = '';
+    let boxSearchKeyword = '';
+    let boxFilterMode = 'all';
+    let folderSortMode = false;
+    let folderLongPressTimer = null;
+    let sidebarCollapsed = false;
+    let collapsedNavExpandedFolders = new Set();
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
-    let autoBackupEnabled = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== '0';
+    let gridZoom = 1;
+    let zoomControlDragging = null;
+    const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
+    if (savedEnabledState === null) localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+    let autoBackupEnabled = (savedEnabledState ?? '1') !== '0';
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 
@@ -507,6 +1057,21 @@
     }
 
 
+    async function verifyPermission(handle, readWrite = true, request = false) {
+      if (!handle) return false;
+      const opts = { mode: readWrite ? 'readwrite' : 'read' };
+      const q = await handle.queryPermission(opts);
+      if (q === 'granted') return true;
+      if (!request) return false;
+      try {
+        const r = await handle.requestPermission(opts);
+        return r === 'granted';
+      } catch {
+        return false;
+      }
+    }
+
+
     async function clearDirectoryHandle() {
       try {
         const dbi = await openBackupHandleDb();
@@ -526,15 +1091,14 @@
       if (!('showDirectoryPicker' in window)) return null;
       let dirHandle = forcePick ? null : await loadDirectoryHandle();
       if (!dirHandle && interactive) {
-        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        dirHandle = await window.showDirectoryPicker({ id: 'freezer-auto-backup-dir', mode: 'readwrite' });
         await saveDirectoryHandle(dirHandle);
       }
       if (!dirHandle) return null;
-      const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') {
-        const next = interactive ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
-        if (next !== 'granted') return null;
-      }
+
+      const granted = await verifyPermission(dirHandle, true, interactive);
+      if (!granted) return null;
+
       return await dirHandle.getDirectoryHandle(AUTO_BACKUP_DIR, { create: true });
     }
 
@@ -553,21 +1117,59 @@
       }
     }
 
+    function setBackupStatus(text, mode = 'local') {
+      const targets = [document.getElementById('backup-status')].filter(Boolean);
+      targets.forEach(el => {
+        el.textContent = text;
+        el.classList.remove('ok', 'off');
+        if (mode === 'folder') el.classList.add('ok');
+        if (mode === 'off') el.classList.add('off');
+      });
+
+      const dirLabel = document.getElementById('backup-dir-label');
+      const dirTop = document.getElementById('backup-dir-top');
+      const showDir = mode !== 'off';
+      if (dirLabel) dirLabel.classList.toggle('hidden', !showDir);
+      if (dirTop) {
+        dirTop.classList.toggle('hidden', !showDir);
+        if (showDir) {
+          const fullPath = `${AUTO_BACKUP_DIR}/${getDailyBackupFileName()}`;
+          dirTop.textContent = mode === 'folder' ? `${fullPath}（已授权）` : fullPath;
+        }
+      }
+
+      const log = document.getElementById('last-backup-log');
+      if (log && localStorage.getItem(AUTO_BACKUP_KEY)) {
+        try {
+          const latest = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY));
+          if (latest?.savedAt) log.textContent = new Date(latest.savedAt).toLocaleTimeString('zh-CN', { hour12: false });
+        } catch {}
+      }
+    }
+
     async function refreshBackupStatus() {
       const el = document.getElementById('backup-status');
       if (!el) return;
       if (!('showDirectoryPicker' in window)) {
-        el.textContent = '文件夹自动备份：当前浏览器不支持（仅本地备份）';
+        setBackupStatus('自动备份：浏览器不支持目录授权', 'local');
         return;
       }
       if (!autoBackupEnabled) {
-        el.textContent = '文件夹自动备份：已关闭';
+        setBackupStatus('自动备份：已关闭', 'off');
         return;
       }
       const writable = await ensureWritableBackupDir(false);
-      el.textContent = writable
-        ? `文件夹自动备份：已启用（${AUTO_BACKUP_DIR}）`
-        : '文件夹自动备份：已启用（未授权目录，当前仅本地）';
+      const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
+      const mode = writable ? 'folder' : 'local';
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, mode);
+      setBackupStatus(
+        writable
+          ? `自动备份：已授权`
+          : (everAuthorized
+            ? '自动备份：授权待恢复'
+            : '自动备份：未授权目录'),
+        mode
+      );
     }
 
     async function enableFolderAutoBackup() {
@@ -579,6 +1181,8 @@
       }
       try {
         await ensureWritableBackupDir(true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
         await refreshBackupStatus();
         saveAutoBackup('grant-folder-backup');
         alert('已启用自动备份。后续将自动写入 auto-backups 目录。');
@@ -595,6 +1199,8 @@
         autoBackupEnabled = true;
         localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
         await ensureWritableBackupDir(true, true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
         await refreshBackupStatus();
         saveAutoBackup('change-folder');
         alert('备份文件夹已更新。');
@@ -607,17 +1213,151 @@
     async function disableAutoBackup() {
       autoBackupEnabled = false;
       localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '0');
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'off');
+      localStorage.removeItem(AUTO_BACKUP_AUTHORIZED_KEY);
       await clearDirectoryHandle();
       await refreshBackupStatus();
       alert('自动备份已关闭。');
     }
 
 
+
+
+    async function restoreBackupPermissionOnLoad() {
+      if (!autoBackupEnabled || !('showDirectoryPicker' in window)) return false;
+      try {
+        // 仅做静默恢复，不在页面加载时弹权限框（按需只在“启用/更改文件夹”时请求）
+        const handle = await loadDirectoryHandle();
+        if (!handle) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const granted = await verifyPermission(handle, true, false);
+        if (!granted) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const writableDir = await ensureWritableBackupDir(false);
+        if (!writableDir) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+        return true;
+      } catch (err) {
+        console.warn('恢复备份目录权限失败:', err);
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+        return false;
+      }
+    }
+
+    function getDailyBackupFileName(date = new Date()) {
+      return `backup_${date.toISOString().slice(0, 10)}.json`;
+    }
+
+    function upsertDailyBackupRecord(folder, filePayload) {
+      folder.files = folder.files || [];
+      const idx = folder.files.findIndex(f => f.name === filePayload.name);
+      if (idx >= 0) folder.files[idx] = filePayload;
+      else folder.files.unshift(filePayload);
+      folder.files = folder.files
+        .sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))
+        .slice(0, AUTO_BACKUP_LIMIT);
+      return folder;
+    }
+
+    function coerceBackupData(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const source = (raw.data && typeof raw.data === 'object') ? raw.data : raw;
+
+      const folderMap = {};
+      const addFolder = (id, name, parentId = null) => {
+        const fid = String(id || '').trim();
+        if (!fid) return null;
+        if (!folderMap[fid]) folderMap[fid] = { name: String(name || fid), parentId: parentId || null };
+        else {
+          if (name) folderMap[fid].name = String(name);
+          if (parentId !== undefined && parentId !== null) folderMap[fid].parentId = parentId;
+        }
+        return fid;
+      };
+
+      const srcFolders = source.folders || source.locations || source.folderMap;
+      if (Array.isArray(srcFolders)) {
+        srcFolders.forEach((f, idx) => {
+          if (typeof f === 'string') { addFolder(`folder_${idx + 1}`, f, null); return; }
+          if (!f || typeof f !== 'object') return;
+          addFolder(f.id || f.folderId || f.key || `folder_${idx + 1}`, f.name || f.title || `位置${idx + 1}`, f.parentId || f.parent || null);
+        });
+      } else if (srcFolders && typeof srcFolders === 'object') {
+        Object.keys(srcFolders).forEach(fid => {
+          const f = srcFolders[fid];
+          if (typeof f === 'string') addFolder(fid, f, null);
+          else if (f && typeof f === 'object') addFolder(fid, f.name || f.title || fid, f.parentId || f.parent || null);
+        });
+      }
+
+      const rawBoxes = source.boxes || source.containers || source.freezers;
+      if (!rawBoxes) return null;
+      const boxPairs = Array.isArray(rawBoxes)
+        ? rawBoxes.map((b, i) => [b?.id || b?.boxId || b?.key || `box_${Date.now()}_${i}`, b])
+        : Object.entries(rawBoxes);
+
+      const boxes = {};
+      boxPairs.forEach(([id, b], idx) => {
+        if (!b || typeof b !== 'object') return;
+        const folderId = b.folderId || b.locationId || b.folder || b.location || 'default';
+        if (!folderMap[folderId]) addFolder(folderId, String(folderId), null);
+
+        let vials = b.vials || b.cells || b.samples || {};
+        if (Array.isArray(vials)) {
+          const mapped = {};
+          vials.forEach((item, i) => {
+            if (!item || typeof item !== 'object') return;
+            const pos = item.pos || item.position || item.key || `${Math.floor(i / 12) + 1}-${(i % 12) + 1}`;
+            mapped[pos] = {
+              name: item.name || item.cellName || '',
+              p: item.p || item.passage || '',
+              date: item.date || item.freezeDate || ''
+            };
+          });
+          vials = mapped;
+        }
+
+        boxes[String(id || `box_${idx + 1}`)] = {
+          name: b.name || b.title || `容器${idx + 1}`,
+          rows: Number(b.rows || b.r || b.height || 8) || 8,
+          cols: Number(b.cols || b.c || b.width || 12) || 12,
+          folderId,
+          vials: (vials && typeof vials === 'object') ? vials : {}
+        };
+      });
+
+      if (!Object.keys(folderMap).length) folderMap.default = { name: '默认位置', parentId: null };
+      if (!folderMap.default) folderMap.default = { name: '默认位置', parentId: null };
+      return { folders: folderMap, boxes };
+    }
+
+    function loadLatestBackupDataFromLocal() {
+      try {
+        const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
+        const files = (folder.files || []).slice().sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+        const latest = files[0];
+        if (!latest || !latest.content) return null;
+        const data = JSON.parse(latest.content);
+        return coerceBackupData(data);
+      } catch (err) {
+        console.warn('读取最新备份失败:', err);
+        return null;
+      }
+    }
+
     function saveAutoBackup(reason = 'manual') {
       if (!autoBackupEnabled) return;
       try {
         const savedAt = new Date().toISOString();
-        const fileName = `backup_${savedAt.replaceAll(':', '-').replaceAll('.', '-')}.json`;
+        const fileName = getDailyBackupFileName(new Date(savedAt));
         const jsonContent = JSON.stringify(db, null, 2);
 
         const filePayload = {
@@ -631,13 +1371,13 @@
 
         const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
         folder.dir = AUTO_BACKUP_DIR;
-        folder.files = folder.files || [];
-        folder.files.unshift(filePayload);
-        folder.files = folder.files.slice(0, AUTO_BACKUP_LIMIT);
+        upsertDailyBackupRecord(folder, filePayload);
         localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
 
-        // 尝试写入 HTML 所在目录下授权的 auto-backups 文件夹
-        writeBackupFileToFolder(fileName, jsonContent);
+        // 文件夹写入为增强能力；即使失败也持续进行本地自动备份（无需手动再次启用）
+        writeBackupFileToFolder(fileName, jsonContent)
+          .then(ok => localStorage.setItem(AUTO_BACKUP_MODE_KEY, ok ? 'folder' : 'local'))
+          .catch(() => localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local'));
       } catch (err) {
         console.warn('自动备份失败:', err);
       }
@@ -652,11 +1392,56 @@
       });
     }
 
+    function loadHeaderSectionState() {
+      try {
+        return JSON.parse(localStorage.getItem(HEADER_SECTION_COLLAPSE_KEY) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveHeaderSectionState(state) {
+      localStorage.setItem(HEADER_SECTION_COLLAPSE_KEY, JSON.stringify(state));
+    }
+
+    function applyHeaderSectionState() {
+      // 新版工具条不再使用分块收起，历史状态忽略并确保显示
+      const mainCard = document.getElementById('main-actions-card');
+      const backupCard = document.getElementById('backup-actions-card');
+      if (mainCard) mainCard.classList.remove('hidden');
+      if (backupCard) backupCard.classList.remove('hidden');
+    }
+
+    function setHeaderSectionCollapsed(sectionId, collapsed) {
+      const state = loadHeaderSectionState();
+      state[sectionId] = collapsed;
+      saveHeaderSectionState(state);
+      applyHeaderSectionState();
+    }
+
+    function toggleHeaderSection(sectionId) {
+      const state = loadHeaderSectionState();
+      setHeaderSectionCollapsed(sectionId, !(state[sectionId] === true));
+    }
+
+    function expandHeaderSection(sectionId) {
+      setHeaderSectionCollapsed(sectionId, false);
+    }
+
     function normalizeData() {
       let changed = false;
       if (!db.folders || typeof db.folders !== 'object') { db.folders = {}; changed = true; }
       if (!db.boxes || typeof db.boxes !== 'object') { db.boxes = {}; changed = true; }
-      if (!Object.keys(db.folders).length) { db.folders.default = { name: '默认位置' }; changed = true; }
+      if (!Object.keys(db.folders).length) { db.folders.default = { name: '默认位置', parentId: null }; changed = true; }
+
+      Object.keys(db.folders).forEach(fid => {
+        const f = db.folders[fid] || {};
+        if (!f.name) { f.name = fid; changed = true; }
+        if (!Object.prototype.hasOwnProperty.call(f, 'parentId')) { f.parentId = null; changed = true; }
+        if (f.parentId === fid || (f.parentId && !db.folders[f.parentId])) { f.parentId = null; changed = true; }
+        db.folders[fid] = f;
+      });
+      if (db.folders.default && db.folders.default.parentId !== null) { db.folders.default.parentId = null; changed = true; }
 
       Object.values(db.boxes).forEach(box => {
         if (box.size && !box.rows) { box.rows = box.size; box.cols = box.size; changed = true; }
@@ -669,19 +1454,239 @@
       if (changed) save();
     }
 
-    function init() {
+
+
+    function isSidebarCollapsed() {
+      const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      return saved === null ? true : saved === '1';
+    }
+
+    function applySidebarCollapsedState() {
+      sidebarCollapsed = isSidebarCollapsed();
+      document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+      const btn = document.getElementById('sidebar-toggle');
+      if (btn) {
+        btn.textContent = sidebarCollapsed ? '▶' : '◀';
+        btn.title = sidebarCollapsed ? '展开导航栏' : '收起导航栏';
+      }
+      renderCollapsedNav();
+    }
+
+    function toggleSidebar() {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, isSidebarCollapsed() ? '0' : '1');
+      applySidebarCollapsedState();
+    }
+
+    function toggleCollapsedNavFolder(folderId, e) {
+      if (e) e.stopPropagation();
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderCollapsedNav();
+    }
+
+    function handleCollapsedFolderClick(folderId) {
+      setFolderFilter(folderId);
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderCollapsedNav();
+    }
+
+    function renderCollapsedNav() {
+      const wrap = document.getElementById('collapsed-nav');
+      if (!wrap) return;
+      const childrenMap = getFolderChildrenMap();
+      let html = '<div class="mini-tree-title">位置树</div>';
+
+      const prefixFor = (depth, isLast) => {
+        if (depth <= 0) return '';
+        return `${'│'.repeat(Math.max(depth - 1, 0))}${isLast ? '└' : '├'}`;
+      };
+
+      const renderNode = (fid, depth, isLast) => {
+        const folder = db.folders[fid] || {};
+        const fname = folder.name || fid;
+        const expanded = collapsedNavExpandedFolders.has(fid);
+        const childFolders = childrenMap[fid] || [];
+        const boxes = Object.keys(db.boxes)
+          .filter(bid => db.boxes[bid]?.folderId === fid)
+          .sort((a, b) => (db.boxes[a]?.name || '').localeCompare(db.boxes[b]?.name || '', 'zh-CN'));
+        const label = `${fname} (${boxes.length})`;
+        const prefix = prefixFor(depth, isLast);
+
+        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="handleCollapsedFolderClick('${fid}')" title="${getFolderPathName(fid)}"><span class="mini-tree-prefix">${prefix}</span><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span><span class="mini-tree-text">${label}</span></div>`;
+
+        if (!expanded) return;
+
+        childFolders.forEach((childId, idx) => {
+          const childIsLast = idx === childFolders.length - 1 && boxes.length === 0;
+          renderNode(childId, depth + 1, childIsLast);
+        });
+
+        boxes.forEach((bid, idx) => {
+          const b = db.boxes[bid] || {};
+          const bname = b.name || bid;
+          const meta = `${b.rows || 8}x${b.cols || 12}`;
+          const boxPrefix = prefixFor(depth + 1, idx === boxes.length - 1);
+          html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${getFolderPathName(fid)} / ${bname}"><span class="mini-tree-prefix">${boxPrefix}</span><span class="mini-tree-arrow">├</span><span class="mini-tree-text">${bname} · ${meta}</span></div>`;
+        });
+
+        if (!childFolders.length && !boxes.length) {
+          const emptyPrefix = prefixFor(depth + 1, true);
+          html += `<div class="mini-tree-node box" title="空"><span class="mini-tree-prefix">${emptyPrefix}</span><span class="mini-tree-arrow">·</span><span class="mini-tree-text">(空)</span></div>`;
+        }
+      };
+
+      const roots = childrenMap[null] || [];
+      roots.forEach((fid, idx) => renderNode(fid, 0, idx === roots.length - 1));
+      wrap.innerHTML = html;
+    }
+
+    function jumpCollapsedBox(boxId) {
+      const box = db.boxes[boxId];
+      if (!box) return;
+      currentFolderId = box.folderId || 'all';
+      renderFolderList();
+      switchBox(boxId);
+      renderCollapsedNav();
+    }
+
+    async function handleBackupStatusClick() {
+      if (!autoBackupEnabled) {
+        return await enableFolderAutoBackup();
+      }
+      const writable = await ensureWritableBackupDir(false);
+      if (writable) {
+        return await disableAutoBackup();
+      }
+      return await enableFolderAutoBackup();
+    }
+
+    function runImmediateBackup() {
+      saveAutoBackup('manual-toolbar');
+      const log = document.getElementById('last-backup-log');
+      if (log) log.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      alert('已触发立即备份。');
+    }
+
+
+    function isTopToolbarCollapsed() {
+      const raw = localStorage.getItem(TOP_TOOLBAR_COLLAPSED_KEY);
+      if (raw === null) {
+        localStorage.setItem(TOP_TOOLBAR_COLLAPSED_KEY, '1');
+        return true;
+      }
+      return raw === '1';
+    }
+
+    function applyTopToolbarCollapsedState() {
+      const toolbar = document.getElementById('top-toolbar');
+      const btn = document.getElementById('toolbar-toggle-btn');
+      if (!toolbar || !btn) return;
+      const collapsed = isTopToolbarCollapsed();
+      toolbar.classList.toggle('hidden', collapsed);
+      btn.textContent = collapsed ? '展开工具栏' : '收起工具栏';
+    }
+
+    function toggleTopToolbar() {
+      const next = isTopToolbarCollapsed() ? '0' : '1';
+      localStorage.setItem(TOP_TOOLBAR_COLLAPSED_KEY, next);
+      applyTopToolbarCollapsedState();
+      applySidebarCollapsedState();
+    }
+
+    async function init() {
       registerAutoBackupHooks();
+
+      const firstLoadDone = localStorage.getItem(FIRST_LOAD_KEY) === '1';
+      if (firstLoadDone) {
+        const latest = loadLatestBackupDataFromLocal();
+        if (latest) db = latest;
+      } else {
+        localStorage.setItem(FIRST_LOAD_KEY, '1');
+      }
+
       normalizeData();
+      collapsedNavExpandedFolders = new Set(Object.keys(db.folders));
       renderFolderOptions();
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
+      renderBoxFilters();
       updateWarningBoard();
       renderOverviewFolderStrip();
       updateOverview();
-      saveAutoBackup('init-snapshot');
+
+      await restoreBackupPermissionOnLoad();
       refreshBackupStatus();
+      applyHeaderSectionState();
+      applyTopToolbarCollapsedState();
+      applySidebarCollapsedState();
+      initGridZoomControls();
+      updateGridZoom();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
+    }
+
+    function getFolderChildrenMap() {
+      const map = {};
+      Object.keys(db.folders).forEach(fid => {
+        const parentId = db.folders[fid]?.parentId || null;
+        if (!map[parentId]) map[parentId] = [];
+        map[parentId].push(fid);
+      });
+      return map;
+    }
+
+    function getOrderedFolderIds() {
+      const map = getFolderChildrenMap();
+      const ordered = [];
+      const visited = new Set();
+      const walk = (parentId) => {
+        (map[parentId] || []).forEach(fid => {
+          if (visited.has(fid)) return;
+          visited.add(fid);
+          ordered.push(fid);
+          walk(fid);
+        });
+      };
+      walk(null);
+      Object.keys(db.folders).forEach(fid => { if (!visited.has(fid)) ordered.push(fid); });
+      return ordered;
+    }
+
+    function getFolderDepth(folderId) {
+      let depth = 0;
+      let cur = db.folders[folderId]?.parentId || null;
+      const guard = new Set([folderId]);
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        depth += 1;
+        cur = db.folders[cur]?.parentId || null;
+      }
+      return depth;
+    }
+
+    function getDescendantFolderIds(folderId) {
+      const map = getFolderChildrenMap();
+      const out = [];
+      const walk = (fid) => {
+        out.push(fid);
+        (map[fid] || []).forEach(walk);
+      };
+      walk(folderId);
+      return out;
+    }
+
+    function getFolderPathName(folderId) {
+      const names = [];
+      let cur = folderId;
+      const guard = new Set();
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        names.unshift(db.folders[cur].name || cur);
+        cur = db.folders[cur].parentId || null;
+      }
+      return names.join(' / ');
     }
 
     function getFolderColor(folderId) {
@@ -692,11 +1697,40 @@
       return palette[Math.abs(hash) % palette.length];
     }
 
+    function expandFolderAncestors(folderId) {
+      let cur = db.folders[folderId]?.parentId || null;
+      const guard = new Set([folderId]);
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        collapsedNavExpandedFolders.add(cur);
+        cur = db.folders[cur].parentId || null;
+      }
+    }
+
+    function toggleFolderTreeExpand(folderId, e) {
+      if (e) e.stopPropagation();
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderFolderList();
+      renderCollapsedNav();
+    }
+
+    function handleFolderTreeItemClick(folderId, expandable) {
+      if (folderSortMode) return;
+      if (expandable) {
+        if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+        else collapsedNavExpandedFolders.add(folderId);
+      }
+      setFolderFilter(folderId);
+    }
+
     function setFolderFilter(folderId) {
       currentFolderId = folderId;
+      if (folderId !== 'all') expandFolderAncestors(folderId);
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
     }
 
     function setOverviewFolderFilter(folderId) {
@@ -707,24 +1741,136 @@
 
     function renderOverviewFolderStrip() {
       const strip = document.getElementById('overview-folder-strip');
-      const folderIds = Object.keys(db.folders);
+      const folderIds = getOrderedFolderIds();
       strip.innerHTML = [
         `<div class="overview-chip ${currentOverviewFolderId === 'all' ? 'active' : ''}" onclick="setOverviewFolderFilter('all')">全部文件夹</div>`,
-        ...folderIds.map(fid => `<div class="overview-chip ${currentOverviewFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setOverviewFolderFilter('${fid}')">${db.folders[fid].name}</div>`)
+        ...folderIds.map(fid => `<div class="overview-chip ${currentOverviewFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setOverviewFolderFilter('${fid}')">${getFolderPathName(fid)}</div>`)
       ].join('');
     }
 
+
+    function handleUnifiedSidebarSearch() {
+      const keyword = (document.getElementById('sidebar-search')?.value || '').trim().toLowerCase();
+      folderSearchKeyword = keyword;
+      boxSearchKeyword = keyword;
+      renderFolderList();
+      renderBoxList();
+    }
+
+    function handleFolderSidebarSearch() { handleUnifiedSidebarSearch(); }
+    function handleBoxSidebarSearch() { handleUnifiedSidebarSearch(); }
+
+    function startFolderLongPress(folderId) {
+      if (folderSortMode || folderId === 'default') return;
+      clearTimeout(folderLongPressTimer);
+      folderLongPressTimer = setTimeout(() => {
+        folderSortMode = true;
+        renderFolderList();
+      }, 450);
+    }
+
+    function cancelFolderLongPress() {
+      clearTimeout(folderLongPressTimer);
+      folderLongPressTimer = null;
+    }
+
+    function finishFolderSortMode(e) {
+      if (e) e.stopPropagation();
+      folderSortMode = false;
+      renderFolderList();
+    }
+
+    function moveFolderOrder(folderId, delta, e) {
+      if (e) e.stopPropagation();
+      const movable = Object.keys(db.folders).filter(id => id !== 'default');
+      const idx = movable.indexOf(folderId);
+      const target = idx + delta;
+      if (idx < 0 || target < 0 || target >= movable.length) return;
+      const swapped = movable.slice();
+      [swapped[idx], swapped[target]] = [swapped[target], swapped[idx]];
+
+      const entries = [];
+      if (db.folders.default) entries.push(['default', db.folders.default]);
+      swapped.forEach(id => entries.push([id, db.folders[id]]));
+      db.folders = Object.fromEntries(entries);
+      save();
+      renderFolderList();
+      renderBoxList();
+      renderCollapsedNav();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function getLowInventoryNames() {
+      const counts = {};
+      Object.values(db.boxes).forEach(b => Object.values(b.vials || {}).forEach(v => {
+        if (v && v.name) counts[v.name] = (counts[v.name] || 0) + 1;
+      }));
+      return new Set(Object.keys(counts).filter(name => counts[name] <= 3));
+    }
+
+    function renderBoxFilters() {
+      const el = document.getElementById('box-filter-chips');
+      if (!el) return;
+      const lowBoxCount = Object.values(db.boxes).filter(b => Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name))).length;
+      el.innerHTML = `
+        <button class="side-filter ${boxFilterMode === 'all' ? 'active' : ''}" onclick="setBoxFilterMode('all')">全部 ${Object.keys(db.boxes).length}</button>
+        <button class="side-filter ${boxFilterMode === 'low' ? 'active' : ''}" onclick="setBoxFilterMode('low')">低库存 ${lowBoxCount}</button>
+      `;
+    }
+
+    function setBoxFilterMode(mode) {
+      boxFilterMode = mode;
+      renderBoxFilters();
+      renderBoxList();
+    }
+
+    function openCreateModal() {
+      const mask = document.getElementById('create-modal-mask');
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    function closeCreateModal(e) {
+      if (e && e.target && e.target.id !== 'create-modal-mask') return;
+      const mask = document.getElementById('create-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
     function addFolder() {
-      const name = prompt('请输入位置文件夹名称：');
-      if (!name) return;
+      const mask = document.getElementById('add-folder-modal-mask');
+      const input = document.getElementById('add-folder-name');
+      const parentSel = document.getElementById('add-folder-parent');
+      if (input) input.value = '';
+      renderFolderOptions();
+      if (parentSel) {
+        const currentValid = currentFolderId !== 'all' && db.folders[currentFolderId];
+        parentSel.value = currentValid ? currentFolderId : 'root';
+      }
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => input?.focus(), 30);
+    }
+
+    function closeAddFolderModal(e) {
+      if (e && e.target && e.target.id !== 'add-folder-modal-mask') return;
+      const mask = document.getElementById('add-folder-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function submitAddFolderModal() {
+      const name = (document.getElementById('add-folder-name')?.value || '').trim();
+      if (!name) return alert('请输入位置文件夹名称。');
       const id = 'folder_' + Date.now();
-      db.folders[id] = { name: name.trim() };
+      const parentRaw = document.getElementById('add-folder-parent')?.value || 'root';
+      const parentId = parentRaw === 'root' ? null : parentRaw;
+      db.folders[id] = { name, parentId };
       currentFolderId = id;
       save();
+      closeAddFolderModal();
       renderFolderOptions();
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
       renderOverviewFolderStrip();
       updateOverview();
     }
@@ -759,6 +1905,8 @@
         });
       }
       if (!confirm(`确定删除文件夹【${db.folders[id].name}】吗？`)) return;
+      const fallbackParent = db.folders[id]?.parentId || null;
+      Object.keys(db.folders).forEach(fid => { if (db.folders[fid].parentId === id) db.folders[fid].parentId = fallbackParent; });
       delete db.folders[id];
       if (currentFolderId === id) currentFolderId = 'all';
       save();
@@ -771,61 +1919,183 @@
     }
 
     function renderFolderOptions() {
+      const ordered = getOrderedFolderIds();
+      const options = ordered.map(id => {
+        const depth = getFolderDepth(id);
+        const prefix = '　'.repeat(depth);
+        return `<option value="${id}">位置: ${prefix}${db.folders[id].name}</option>`;
+      }).join('');
       const sel = document.getElementById('new-box-folder');
-      sel.innerHTML = Object.keys(db.folders).map(id => `<option value="${id}">位置: ${db.folders[id].name}</option>`).join('');
+      if (sel) sel.innerHTML = options;
+      const modalSel = document.getElementById('add-box-folder');
+      if (modalSel) modalSel.innerHTML = options;
+
+      const parentSel = document.getElementById('add-folder-parent');
+      if (parentSel) {
+        const parentOptions = ['<option value="root">(根目录)</option>', ...ordered.map(id => {
+          const depth = getFolderDepth(id);
+          const prefix = '　'.repeat(depth);
+          return `<option value="${id}">${prefix}${db.folders[id].name}</option>`;
+        })];
+        parentSel.innerHTML = parentOptions.join('');
+      }
     }
 
     function renderFolderList() {
       const list = document.getElementById('folder-list');
       list.innerHTML = '';
 
+      if (folderSortMode) {
+        const tip = document.createElement('div');
+        tip.className = 'muted';
+        tip.style.marginBottom = '6px';
+        tip.innerHTML = '排序模式：使用 ↑↓ 调整顺序，完成后点击 <button class="mini-btn" onclick="finishFolderSortMode(event)">完成</button>';
+        list.appendChild(tip);
+      }
+
       const totalBoxes = Object.keys(db.boxes).length;
       const allItem = document.createElement('div');
-      allItem.className = `item ${currentFolderId === 'all' ? 'active' : ''}`;
-      allItem.innerHTML = `<div class="item-info">全部文件夹</div><div class="item-tag">${totalBoxes}</div>`;
+      allItem.className = `item tree-item ${currentFolderId === 'all' ? 'active' : ''}`;
+      allItem.innerHTML = `<div class="item-info"><span class="tree-arrow">▾</span>全部位置</div><div class="item-tag">${totalBoxes}</div>`;
       allItem.onclick = () => setFolderFilter('all');
       list.appendChild(allItem);
 
-      Object.keys(db.folders).forEach(id => {
-        const folder = db.folders[id];
-        const count = Object.values(db.boxes).filter(b => b.folderId === id).length;
+      const childrenMap = getFolderChildrenMap();
+      const key = folderSearchKeyword.trim().toLowerCase();
+      const visibleFolders = new Set();
+      const visibleBoxesByFolder = {};
+
+      Object.keys(db.boxes).forEach(bid => {
+        const b = db.boxes[bid];
+        if (!b) return;
+        if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return;
+        const fid = b.folderId || 'default';
+        if (!visibleBoxesByFolder[fid]) visibleBoxesByFolder[fid] = [];
+        visibleBoxesByFolder[fid].push(bid);
+      });
+
+      const markVisibleWithAncestors = (fid) => {
+        let cur = fid;
+        const guard = new Set();
+        while (cur && db.folders[cur] && !guard.has(cur)) {
+          visibleFolders.add(cur);
+          collapsedNavExpandedFolders.add(cur);
+          guard.add(cur);
+          cur = db.folders[cur].parentId || null;
+        }
+      };
+
+      if (key) {
+        getOrderedFolderIds().forEach(fid => {
+          const name = (db.folders[fid]?.name || '').toLowerCase();
+          const path = getFolderPathName(fid).toLowerCase();
+          if (name.includes(key) || path.includes(key)) markVisibleWithAncestors(fid);
+        });
+        Object.keys(visibleBoxesByFolder).forEach(fid => {
+          const matchedBoxes = visibleBoxesByFolder[fid].filter(bid => (db.boxes[bid]?.name || '').toLowerCase().includes(key));
+          if (matchedBoxes.length) {
+            visibleBoxesByFolder[fid] = matchedBoxes;
+            markVisibleWithAncestors(fid);
+          } else {
+            delete visibleBoxesByFolder[fid];
+          }
+        });
+      }
+
+      const renderNode = (fid, depth) => {
+        if (key && !visibleFolders.has(fid)) return;
+        const folder = db.folders[fid];
+        const descendants = new Set(getDescendantFolderIds(fid));
+        const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
+        const childIds = (childrenMap[fid] || []).filter(cid => !key || visibleFolders.has(cid));
+        const folderBoxIds = (visibleBoxesByFolder[fid] || []).slice().sort((a, b) => (db.boxes[a]?.name || '').localeCompare(db.boxes[b]?.name || '', 'zh-CN'));
+        const expanded = collapsedNavExpandedFolders.has(fid) || !!key;
+        const expandable = childIds.length > 0 || folderBoxIds.length > 0;
+
         const div = document.createElement('div');
-        div.className = `item folder-item ${currentFolderId === id ? 'active' : ''}`;
-        div.style.borderLeftColor = getFolderColor(id);
+        div.className = `item folder-item tree-item ${currentFolderId === fid ? 'active' : ''}`;
+        div.style.borderLeftColor = getFolderColor(fid);
+        const sortOps = folderSortMode && fid !== 'default'
+          ? `<span class="folder-sort-ops"><button class="mini-btn" onclick="moveFolderOrder('${fid}',-1,event)">↑</button><button class="mini-btn" onclick="moveFolderOrder('${fid}',1,event)">↓</button></span>`
+          : '';
+        const arrow = expandable ? (expanded ? '▾' : '▸') : '•';
+        const arrowClick = expandable ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
         div.innerHTML = `
-          <div class="item-info">${folder.name}<span class="item-tag">${count}</span></div>
+          <div class="item-info" style="padding-left:${depth * 12}px">
+            <span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}
+          </div>
           <div>
-            <button class="mini-btn" title="重命名" onclick="renameFolder('${id}',event)">✎</button>
-            <button class="mini-btn danger" title="删除" onclick="deleteFolder('${id}',event)">🗑</button>
+            <button class="mini-btn" title="重命名" onclick="renameFolder('${fid}',event)">✎</button>
+            <button class="mini-btn danger" title="删除" onclick="deleteFolder('${fid}',event)">🗑</button>
           </div>
         `;
-        div.onclick = () => setFolderFilter(id);
+        div.onpointerdown = () => startFolderLongPress(fid);
+        div.onpointerup = cancelFolderLongPress;
+        div.onpointerleave = cancelFolderLongPress;
+        div.onclick = () => handleFolderTreeItemClick(fid, expandable);
         list.appendChild(div);
-      });
+
+        if (!expanded) return;
+        childIds.forEach(cid => renderNode(cid, depth + 1));
+
+        folderBoxIds.forEach(bid => {
+          const b = db.boxes[bid];
+          if (!b) return;
+          const boxDiv = document.createElement('div');
+          boxDiv.className = `item tree-item ${currentBoxId === bid ? 'active' : ''}`;
+          boxDiv.style.borderLeftColor = getFolderColor(fid);
+          boxDiv.innerHTML = `<div class="item-info" style="padding-left:${(depth + 1) * 12}px"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>`;
+          boxDiv.onclick = () => { searchHighlightPos = null; switchBox(bid); };
+          list.appendChild(boxDiv);
+        });
+      };
+
+      (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
     }
 
     function renderBoxFolderStrip() {
       const strip = document.getElementById('box-folder-strip');
       if (!strip) return;
-      const folderIds = Object.keys(db.folders);
+      const folderIds = getOrderedFolderIds();
       const total = Object.keys(db.boxes).length;
       strip.innerHTML = [
         `<div class="folder-chip all ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部 · ${total}</div>`,
         ...folderIds.map(fid => {
-          const count = Object.values(db.boxes).filter(b => b.folderId === fid).length;
-          return `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${db.folders[fid].name} · ${count}</div>`;
+          const descendants = new Set(getDescendantFolderIds(fid));
+          const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
+          return `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${getFolderPathName(fid)} · ${count}</div>`;
         })
       ].join('');
     }
 
     function addBox() {
-      const name = prompt('请输入容器名称（例如：96孔板-1）：');
-      if (!name) return;
-      const [rows, cols] = document.getElementById('new-box-specs').value.split(',').map(Number);
-      const folderId = document.getElementById('new-box-folder').value;
+      renderFolderOptions();
+      const mask = document.getElementById('add-box-modal-mask');
+      const name = document.getElementById('add-box-name');
+      const spec = document.getElementById('add-box-spec');
+      if (name) name.value = '';
+      if (spec) spec.value = '8,12';
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => name?.focus(), 30);
+    }
+
+    function closeAddBoxModal(e) {
+      if (e && e.target && e.target.id !== 'add-box-modal-mask') return;
+      const mask = document.getElementById('add-box-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function submitAddBoxModal() {
+      const name = (document.getElementById('add-box-name')?.value || '').trim();
+      if (!name) return alert('请输入容器名称。');
+      const folderId = document.getElementById('add-box-folder')?.value;
+      const [rows, cols] = (document.getElementById('add-box-spec')?.value || '8,12').split(',').map(Number);
+      if (!folderId || !db.folders[folderId]) return alert('请选择有效位置文件夹。');
+
       const id = 'box_' + Date.now();
-      db.boxes[id] = { name: name.trim(), rows, cols, folderId, vials: {} };
+      db.boxes[id] = { name, rows, cols, folderId, vials: {} };
       save();
+      closeAddBoxModal();
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
@@ -872,6 +2142,7 @@ ${options}`);
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
       updatePanel();
       updateWarningBoard();
       renderOverviewFolderStrip();
@@ -880,23 +2151,25 @@ ${options}`);
 
     function renderBoxList() {
       const list = document.getElementById('box-list');
+      if (!list) return;
       list.innerHTML = '';
-      const ids = Object.keys(db.boxes);
+      renderBoxFilters();
+      const lowNames = getLowInventoryNames();
+      const ids = Object.keys(db.boxes).filter(id => {
+        const b = db.boxes[id];
+        if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return false;
+        if (boxFilterMode === 'low') return Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name));
+        return true;
+      });
 
       const renderBoxItem = (id) => {
         const b = db.boxes[id];
         const folderName = db.folders[b.folderId]?.name || '未分类';
         const div = document.createElement('div');
-        div.className = `item box-item ${id === currentBoxId ? 'active' : ''}`;
+        div.className = `item tree-item ${id === currentBoxId ? 'active' : ''}`;
         div.style.borderLeftColor = getFolderColor(b.folderId);
         div.innerHTML = `
-          <div class="item-info">
-            <div class="box-name">${b.name}</div>
-            <div class="box-meta">
-              <span class="box-meta-badge">${b.rows}x${b.cols}</span>
-              ${currentFolderId === 'all' ? `<span class="box-meta-badge">${folderName}</span>` : ''}
-            </div>
-          </div>
+          <div class="item-info"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span>${currentFolderId === 'all' ? `<span class="item-tag">${folderName}</span>` : ''}</div>
           <div>
             <button class="mini-btn" title="移动到其他文件夹" onclick="moveBoxFolder('${id}',event)">📁</button>
             <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${id}',event)">✕</button>
@@ -907,7 +2180,8 @@ ${options}`);
       };
 
       if (currentFolderId !== 'all') {
-        ids.filter(id => db.boxes[id].folderId === currentFolderId).forEach(renderBoxItem);
+        const allowed = new Set(getDescendantFolderIds(currentFolderId));
+        ids.filter(id => allowed.has(db.boxes[id].folderId)).forEach(renderBoxItem);
         return;
       }
 
@@ -918,16 +2192,17 @@ ${options}`);
         grouped[fid].push(id);
       });
 
-      Object.keys(db.folders).forEach(fid => {
+      getOrderedFolderIds().forEach(fid => {
         const folderIds = grouped[fid] || [];
         if (!folderIds.length) return;
         const title = document.createElement('div');
         title.className = 'box-group-title';
         title.style.background = getFolderColor(fid);
-        title.innerHTML = `<span>${db.folders[fid].name}</span><span>${folderIds.length}</span>`;
+        title.innerHTML = `<span>${getFolderPathName(fid)}</span><span>${folderIds.length}</span>`;
         list.appendChild(title);
         folderIds.forEach(renderBoxItem);
       });
+      renderCollapsedNav();
     }
 
     function switchBox(id) {
@@ -956,6 +2231,69 @@ ${options}`);
       };
     }
 
+    function updateGridZoom() {
+      const grid = document.getElementById('grid');
+      const label = document.getElementById('grid-zoom-label');
+      const slider = document.getElementById('grid-zoom-slider');
+      if (grid) {
+        grid.style.transform = `scale(${gridZoom})`;
+        grid.style.setProperty('--grid-font-scale', `${(1 / gridZoom).toFixed(4)}`);
+      }
+      if (label) label.textContent = `${Math.round(gridZoom * 100)}%`;
+      if (slider) slider.value = String(Math.round(gridZoom * 100));
+    }
+
+    function setGridZoom(next) {
+      gridZoom = Math.max(0.6, Math.min(1.8, Number(next.toFixed(2))));
+      updateGridZoom();
+    }
+
+    function handleGridZoomSlider(value) {
+      const pct = Number(value);
+      if (Number.isNaN(pct)) return;
+      setGridZoom(pct / 100);
+    }
+
+    function zoomGridIn() { setGridZoom(gridZoom + 0.1); }
+    function zoomGridOut() { setGridZoom(gridZoom - 0.1); }
+    function resetGridZoom() { setGridZoom(1); }
+
+    function initGridZoomControls() {
+      const controls = document.getElementById('grid-zoom-controls');
+      const view = document.querySelector('#grid-view .view');
+      if (!controls || !view || controls.dataset.dragReady === '1') return;
+      controls.dataset.dragReady = '1';
+
+      controls.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button, input')) return;
+        const viewRect = view.getBoundingClientRect();
+        const ctrlRect = controls.getBoundingClientRect();
+        zoomControlDragging = {
+          offsetX: e.clientX - ctrlRect.left,
+          offsetY: e.clientY - ctrlRect.top,
+          viewRect
+        };
+        controls.classList.add('dragging');
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!zoomControlDragging) return;
+        const { offsetX, offsetY, viewRect } = zoomControlDragging;
+        const left = Math.min(Math.max(e.clientX - viewRect.left - offsetX, 0), Math.max(viewRect.width - controls.offsetWidth, 0));
+        const top = Math.min(Math.max(e.clientY - viewRect.top - offsetY, 0), Math.max(viewRect.height - controls.offsetHeight, 0));
+        controls.style.left = `${left}px`;
+        controls.style.top = `${top}px`;
+        controls.style.right = 'auto';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!zoomControlDragging) return;
+        zoomControlDragging = null;
+        controls.classList.remove('dragging');
+      });
+    }
+
     function renderGrid() {
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
@@ -964,6 +2302,7 @@ ${options}`);
       const box = db.boxes[currentBoxId];
       const layout = getDisplayLayout(box);
       grid.style.gridTemplateColumns = `repeat(${layout.renderCols}, 48px)`;
+      updateGridZoom();
 
       for (let r = 1; r <= layout.renderRows; r++) {
         for (let c = 1; c <= layout.renderCols; c++) {
@@ -977,7 +2316,7 @@ ${options}`);
             el.classList.add('occupied');
             el.style.backgroundColor = stringToHslColor(vial.name);
             el.title = `位置: ${pos}\n名称: ${vial.name}\n代数: ${vial.p || '-'}\n日期: ${vial.date || '-'}`;
-            el.innerHTML = `<div class="cell-label">${vial.name}</div><div class="cell-sub">${vial.p || 'P-'}</div>`;
+            el.innerHTML = `<div class="cell-label">${vial.name}</div>`;
             el.setAttribute('draggable', 'true');
             el.addEventListener('dragstart', (e) => handleDragStart(e, pos));
             el.addEventListener('dragend', handleDragEnd);
@@ -1172,7 +2511,7 @@ ${options}`);
 
     function updateOverview() {
       const tree = document.getElementById('overview-tree');
-      const folderIds = currentOverviewFolderId === 'all' ? Object.keys(db.folders) : [currentOverviewFolderId].filter(fid => db.folders[fid]);
+      const folderIds = currentOverviewFolderId === 'all' ? getOrderedFolderIds() : getDescendantFolderIds(currentOverviewFolderId).filter(fid => db.folders[fid]);
       const chunks = [];
 
       folderIds.forEach(fid => {
@@ -1304,8 +2643,9 @@ ${options}`);
       reader.onload = ev => {
         try {
           const data = JSON.parse(ev.target.result);
-          if (!data.boxes) return alert('文件格式错误，不是有效备份。');
-          db = data;
+          const normalized = coerceBackupData(data);
+          if (!normalized) return alert('文件格式错误，不是有效备份。');
+          db = normalized;
           normalizeData();
           save();
           currentBoxId = null;
