@@ -782,11 +782,6 @@
       <div class="folder-sort-tip">长按文件夹项可进入排序模式</div>
       <div id="folder-list" class="list folder-list"></div>
 
-      <div class="sidebar-sub" style="margin-top:8px;">容器 (Containers)</div>
-      <div class="side-inline" style="justify-content:space-between;align-items:center;">
-        <div id="box-filter-chips" class="side-inline"></div>
-      </div>
-      <div id="box-list" class="list box-list"></div>
 
       <div class="side-actions">
         <button class="side-btn" onclick="openCreateModal()">+ 新建</button>
@@ -2069,6 +2064,7 @@ ${options}`);
 
     function renderBoxList() {
       const list = document.getElementById('box-list');
+      if (!list) return;
       list.innerHTML = '';
       renderBoxFilters();
       const lowNames = getLowInventoryNames();
