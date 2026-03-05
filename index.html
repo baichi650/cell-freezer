@@ -188,6 +188,7 @@
       padding: 10px 12px;
       cursor: pointer;
       font-size: 13px;
+      cursor: pointer;
     }
     .btn:hover { border-color: var(--primary); color: var(--primary); }
     .btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -726,7 +727,7 @@
           <input id="global-search" class="tool-search" type="text" placeholder="🔎 全局搜索：细胞名/代数/条码" oninput="handleGlobalSearch()" />
           <div id="search-dd" class="search-dd"></div>
         </div>
-        <span id="backup-status" class="tool-status-badge">⚠️ 未授权目录</span>
+        <span id="backup-status" class="tool-status-badge" onclick="handleBackupStatusClick()" title="点击进行开启/授权/关闭">⚠️ 未授权目录</span>
         <button class="toolbar-toggle-btn" onclick="switchView('grid')">容器页面</button>
         <button class="toolbar-toggle-btn" onclick="switchView('overview')">总览页面</button>
         <div class="toolbar-toggle-bar" style="margin-bottom:0;">
@@ -745,12 +746,8 @@
 
         <div class="tool-row" id="backup-actions-card">
           <span class="tool-label">自动备份:</span>
-          <label style="display:inline-flex;align-items:center;gap:6px;">
-            <input id="backup-enable-switch" type="checkbox" onchange="toggleAutoBackupSwitch(this.checked)" />
-            <span>开关</span>
-          </label>
-          <span class="tool-label">目录:</span>
-          <span id="backup-dir-top">auto-backups</span>
+          <span id="backup-dir-label" class="tool-label hidden">目录:</span>
+          <span id="backup-dir-top" class="hidden">auto-backups</span>
           <span class="tool-label">格式:</span><span>JSON</span>
           <span class="tool-label">频率:</span>
           <select id="backup-frequency" class="tool-select">
@@ -762,7 +759,6 @@
 
         <div class="tool-row">
           <span class="tool-label">快捷操作:</span>
-          <button class="tool-link-btn" onclick="enableFolderAutoBackup()">立即授权</button>
           <button class="tool-link-btn" onclick="changeBackupFolder()">更改目录</button>
           <button class="tool-link-btn" onclick="runImmediateBackup()">立即备份</button>
         </div>
@@ -994,10 +990,19 @@
         if (mode === 'folder') el.classList.add('ok');
         if (mode === 'off') el.classList.add('off');
       });
+
+      const dirLabel = document.getElementById('backup-dir-label');
       const dirTop = document.getElementById('backup-dir-top');
-      if (dirTop) dirTop.textContent = AUTO_BACKUP_DIR;
-      const sw = document.getElementById('backup-enable-switch');
-      if (sw) sw.checked = autoBackupEnabled;
+      const showDir = mode !== 'off';
+      if (dirLabel) dirLabel.classList.toggle('hidden', !showDir);
+      if (dirTop) {
+        dirTop.classList.toggle('hidden', !showDir);
+        if (showDir) {
+          const fullPath = `${AUTO_BACKUP_DIR}/${getDailyBackupFileName()}`;
+          dirTop.textContent = mode === 'folder' ? `${fullPath}（已授权）` : fullPath;
+        }
+      }
+
       const log = document.getElementById('last-backup-log');
       if (log && localStorage.getItem(AUTO_BACKUP_KEY)) {
         try {
@@ -1011,7 +1016,7 @@
       const el = document.getElementById('backup-status');
       if (!el) return;
       if (!('showDirectoryPicker' in window)) {
-        setBackupStatus('自动备份：当前浏览器不支持（仅本地备份）', 'local');
+        setBackupStatus('自动备份：浏览器不支持目录授权', 'local');
         return;
       }
       if (!autoBackupEnabled) {
@@ -1024,10 +1029,10 @@
       localStorage.setItem(AUTO_BACKUP_MODE_KEY, mode);
       setBackupStatus(
         writable
-          ? `自动备份：开启（文件夹 ${AUTO_BACKUP_DIR}）`
+          ? `自动备份：已授权`
           : (everAuthorized
-            ? '自动备份：开启（本地备份进行中，目录权限待系统恢复）'
-            : '自动备份：开启（本地备份进行中，尚未授权目录）'),
+            ? '自动备份：授权待恢复'
+            : '自动备份：未授权目录'),
         mode
       );
     }
@@ -1235,9 +1240,15 @@
     }
 
 
-    async function toggleAutoBackupSwitch(checked) {
-      if (checked) await enableFolderAutoBackup();
-      else await disableAutoBackup();
+    async function handleBackupStatusClick() {
+      if (!autoBackupEnabled) {
+        return await enableFolderAutoBackup();
+      }
+      const writable = await ensureWritableBackupDir(false);
+      if (writable) {
+        return await disableAutoBackup();
+      }
+      return await enableFolderAutoBackup();
     }
 
     function runImmediateBackup() {
