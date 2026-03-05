@@ -206,6 +206,37 @@
     .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
     .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
     .header .row { flex-wrap: wrap; }
+    .toolbar-card {
+      border: 1px solid #e6e6e6;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toolbar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .toolbar-title {
+      font-size: 12px;
+      color: #777;
+      font-weight: 600;
+    }
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn.compact {
+      padding: 7px 10px;
+      font-size: 12px;
+      border-radius: 7px;
+    }
     .search-wrap { flex: 1; position: relative; }
     .search { width: 100%; padding: 12px; border: 1px solid #d9d9d9; border-radius: 8px; }
     .search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(24,144,255,.2); }
@@ -383,20 +414,33 @@
         <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
         <div id="search-dd" class="search-dd"></div>
       </div>
-      <div class="row">
-        <button class="btn" onclick="switchView('grid')">🧱 容器页面</button>
-        <button class="btn" onclick="switchView('overview')">📊 总览页面</button>
-        <button class="btn" onclick="exportExcel()">📗 导出Excel</button>
-        <button class="btn" onclick="exportJSON()">📤 导出备份</button>
-        <button class="btn" onclick="triggerImport()">📥 导入数据</button>
-        <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
+      <div class="toolbar-card">
+        <div class="toolbar-head">
+          <div class="toolbar-title">页面与数据操作</div>
+          <button id="toggle-main-actions" class="btn compact" onclick="toggleHeaderSection('main-actions')">收起</button>
+        </div>
+        <div id="main-actions" class="toolbar-actions">
+          <button class="btn compact" onclick="switchView('grid')">🧱 容器页面</button>
+          <button class="btn compact" onclick="switchView('overview')">📊 总览页面</button>
+          <button class="btn compact" onclick="exportExcel()">📗 导出Excel</button>
+          <button class="btn compact" onclick="exportJSON()">📤 导出备份</button>
+          <button class="btn compact" onclick="triggerImport()">📥 导入数据</button>
+          <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
+        </div>
       </div>
-      <div class="row" style="align-items:center;">
-        <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
-        <button class="btn" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
-        <button class="btn" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
-        <button class="btn" onclick="disableAutoBackup()">⏹ 关闭自动备份</button>
-        <span id="backup-status" class="muted">文件夹自动备份：未授权（当前仅浏览器本地）</span>
+
+      <div class="toolbar-card">
+        <div class="toolbar-head">
+          <div class="toolbar-title">自动备份设置</div>
+          <button id="toggle-backup-actions" class="btn compact" onclick="toggleHeaderSection('backup-actions')">收起</button>
+        </div>
+        <div id="backup-actions" class="toolbar-actions">
+          <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
+          <button class="btn compact" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
+          <button class="btn compact" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
+          <button class="btn compact" onclick="disableAutoBackup()">⏹ 关闭自动备份</button>
+          <span id="backup-status" class="muted">文件夹自动备份：未授权（当前仅浏览器本地）</span>
+        </div>
       </div>
     </div>
 
@@ -451,6 +495,7 @@
     const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
     const AUTO_BACKUP_AUTHORIZED_KEY = 'cell_freezer_auto_backup_authorized';
     const AUTO_BACKUP_MODE_KEY = 'cell_freezer_auto_backup_mode';
+    const HEADER_SECTION_COLLAPSE_KEY = 'cell_freezer_header_section_collapse_state';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -744,6 +789,37 @@
       });
     }
 
+    function loadHeaderSectionState() {
+      try {
+        return JSON.parse(localStorage.getItem(HEADER_SECTION_COLLAPSE_KEY) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveHeaderSectionState(state) {
+      localStorage.setItem(HEADER_SECTION_COLLAPSE_KEY, JSON.stringify(state));
+    }
+
+    function applyHeaderSectionState() {
+      const state = loadHeaderSectionState();
+      ['main-actions', 'backup-actions'].forEach(sectionId => {
+        const section = document.getElementById(sectionId);
+        const toggleBtn = document.getElementById(`toggle-${sectionId}`);
+        if (!section || !toggleBtn) return;
+        const collapsed = state[sectionId] === true;
+        section.classList.toggle('hidden', collapsed);
+        toggleBtn.textContent = collapsed ? '展开' : '收起';
+      });
+    }
+
+    function toggleHeaderSection(sectionId) {
+      const state = loadHeaderSectionState();
+      state[sectionId] = !(state[sectionId] === true);
+      saveHeaderSectionState(state);
+      applyHeaderSectionState();
+    }
+
     function normalizeData() {
       let changed = false;
       if (!db.folders || typeof db.folders !== 'object') { db.folders = {}; changed = true; }
@@ -783,6 +859,7 @@
 
       await restoreBackupPermissionOnLoad();
       refreshBackupStatus();
+      applyHeaderSectionState();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
 
