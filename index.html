@@ -525,7 +525,57 @@
       color: #69c0ff;
     }
 
-    .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
+
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal {
+      width: min(520px, calc(100vw - 24px));
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 18px 48px rgba(0,0,0,.25);
+      overflow: hidden;
+    }
+    .modal-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .modal-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-foot {
+      padding: 12px 14px;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-field label {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .modal-field input, .modal-field select {
+      width: 100%;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+        .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
     .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
     .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; }
@@ -766,6 +816,37 @@
         <div id="overview-tree" class="overview-tree"></div>
       </div>
     </section>
+
+
+    <div id="add-box-modal-mask" class="modal-mask hidden" onclick="closeAddBoxModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-head">新建容器</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label>容器名称</label>
+            <input id="add-box-name" type="text" placeholder="例如：96孔板-1" />
+          </div>
+          <div class="modal-field">
+            <label>位置文件夹</label>
+            <select id="add-box-folder"></select>
+          </div>
+          <div class="modal-field">
+            <label>容器规格</label>
+            <select id="add-box-spec">
+              <option value="8,12">96孔板 (8x12)</option>
+              <option value="9,9">9x9 (81格)</option>
+              <option value="10,10">10x10 (100格)</option>
+              <option value="12,6">12x6 (72格)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeAddBoxModal()">取消</button>
+          <button class="btn primary" onclick="submitAddBoxModal()">创建</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script>
@@ -1391,9 +1472,11 @@
     }
 
     function renderFolderOptions() {
+      const options = Object.keys(db.folders).map(id => `<option value="${id}">位置: ${db.folders[id].name}</option>`).join('');
       const sel = document.getElementById('new-box-folder');
-      if (!sel) return;
-      sel.innerHTML = Object.keys(db.folders).map(id => `<option value="${id}">位置: ${db.folders[id].name}</option>`).join('');
+      if (sel) sel.innerHTML = options;
+      const modalSel = document.getElementById('add-box-folder');
+      if (modalSel) modalSel.innerHTML = options;
     }
 
     function renderFolderList() {
@@ -1457,35 +1540,33 @@
     }
 
     function addBox() {
-      const name = prompt('请输入容器名称（例如：96孔板-1）：');
-      if (!name) return;
+      renderFolderOptions();
+      const mask = document.getElementById('add-box-modal-mask');
+      const name = document.getElementById('add-box-name');
+      const spec = document.getElementById('add-box-spec');
+      if (name) name.value = '';
+      if (spec) spec.value = '8,12';
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => name?.focus(), 30);
+    }
 
-      const folderIds = Object.keys(db.folders);
-      const folderOptions = folderIds.map((fid, idx) => `${idx + 1}. ${db.folders[fid].name}`).join('\n');
-      const folderInput = prompt(`请选择位置文件夹序号：
-${folderOptions}`, '1');
-      if (!folderInput) return;
-      const folderIdx = Number(folderInput) - 1;
-      if (!Number.isInteger(folderIdx) || folderIdx < 0 || folderIdx >= folderIds.length) return alert('文件夹序号无效。');
-      const folderId = folderIds[folderIdx];
+    function closeAddBoxModal(e) {
+      if (e && e.target && e.target.id !== 'add-box-modal-mask') return;
+      const mask = document.getElementById('add-box-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
 
-      const specs = [
-        { label: '96孔板 (8x12)', rows: 8, cols: 12 },
-        { label: '9x9 (81格)', rows: 9, cols: 9 },
-        { label: '10x10 (100格)', rows: 10, cols: 10 },
-        { label: '12x6 (72格)', rows: 12, cols: 6 }
-      ];
-      const specOptions = specs.map((sp, i) => `${i + 1}. ${sp.label}`).join('\n');
-      const specInput = prompt(`请选择规格序号：
-${specOptions}`, '1');
-      if (!specInput) return;
-      const specIdx = Number(specInput) - 1;
-      if (!Number.isInteger(specIdx) || specIdx < 0 || specIdx >= specs.length) return alert('规格序号无效。');
-      const { rows, cols } = specs[specIdx];
+    function submitAddBoxModal() {
+      const name = (document.getElementById('add-box-name')?.value || '').trim();
+      if (!name) return alert('请输入容器名称。');
+      const folderId = document.getElementById('add-box-folder')?.value;
+      const [rows, cols] = (document.getElementById('add-box-spec')?.value || '8,12').split(',').map(Number);
+      if (!folderId || !db.folders[folderId]) return alert('请选择有效位置文件夹。');
 
       const id = 'box_' + Date.now();
-      db.boxes[id] = { name: name.trim(), rows, cols, folderId, vials: {} };
+      db.boxes[id] = { name, rows, cols, folderId, vials: {} };
       save();
+      closeAddBoxModal();
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
