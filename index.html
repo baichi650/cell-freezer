@@ -703,14 +703,21 @@
       color: #6b7280;
       font-size: 12px;
       font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .cell.axis-cell .cell-label {
+      width: auto;
+      height: auto;
       display: block;
       font-size: 12px;
       line-height: 1;
       white-space: nowrap;
       word-break: normal;
       text-overflow: clip;
+      text-align: center;
+      padding: 0;
     }
 
     .cell {
@@ -996,10 +1003,10 @@
             </select>
           </div>
           <div id="add-box-custom-wrap" class="modal-field hidden">
-            <label>自定义行标签（逗号/空格/换行分隔，例如：A,B,C）</label>
-            <input id="add-box-custom-rows" type="text" placeholder="例如：A,B,C,D" />
-            <label style="margin-top:8px;">自定义列标签（逗号/空格/换行分隔，例如：1,2,3）</label>
-            <input id="add-box-custom-cols" type="text" placeholder="例如：1,2,3,4,5" />
+            <label>自定义行数（n行）</label>
+            <input id="add-box-custom-rows" type="number" min="1" step="1" placeholder="例如：8" />
+            <label style="margin-top:8px;">自定义列数（n列）</label>
+            <input id="add-box-custom-cols" type="number" min="1" step="1" placeholder="例如：12" />
           </div>
         </div>
         <div class="modal-foot">
@@ -2167,20 +2174,18 @@
 
       let rows = 8;
       let cols = 12;
-      let rowLabels;
-      let colLabels;
       if (specValue === 'custom') {
-        rowLabels = parseCustomAxisLabels(document.getElementById('add-box-custom-rows')?.value || '');
-        colLabels = parseCustomAxisLabels(document.getElementById('add-box-custom-cols')?.value || '');
-        if (!rowLabels.length || !colLabels.length) return alert('自定义规格至少需要 1 个行标签和 1 个列标签。');
-        rows = rowLabels.length;
-        cols = colLabels.length;
+        rows = Number(document.getElementById('add-box-custom-rows')?.value || 0);
+        cols = Number(document.getElementById('add-box-custom-cols')?.value || 0);
+        if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1) {
+          return alert('请输入有效的自定义行数和列数（正整数）。');
+        }
       } else {
         [rows, cols] = specValue.split(',').map(Number);
       }
 
       const id = 'box_' + Date.now();
-      db.boxes[id] = { name, rows, cols, rowLabels, colLabels, folderId, vials: {} };
+      db.boxes[id] = { name, rows, cols, folderId, vials: {} };
       save();
       closeAddBoxModal();
       renderFolderList();
@@ -2315,14 +2320,6 @@ ${options}`);
       renderGrid();
       renderBoxList();
       updatePanel();
-    }
-
-
-    function parseCustomAxisLabels(value) {
-      return String(value || '')
-        .split(/[\n,，;；\s]+/)
-        .map(v => v.trim())
-        .filter(Boolean);
     }
 
     function getDefaultRowLabels(count) {
