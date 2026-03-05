@@ -650,7 +650,7 @@
         .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
     .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; position: relative; }
-    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; }
+    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; --grid-font-scale: 1; }
     .grid-zoom-controls { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.96); border: 1px solid #e8e8e8; border-radius: 10px; padding: 6px 8px; z-index: 12; box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: grab; }
     .grid-zoom-controls.dragging { cursor: grabbing; }
     .zoom-drag-handle { color: #999; font-size: 14px; padding: 0 2px; user-select: none; }
@@ -688,7 +688,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 11px;
+      font-size: calc(11px * var(--grid-font-scale));
       line-height: 1.2;
       text-align: center;
     }
@@ -698,7 +698,7 @@
       padding: 0 4px;
       border-radius: 999px;
       background: rgba(255,255,255,.6);
-      font-size: 8px;
+      font-size: calc(8px * var(--grid-font-scale));
       line-height: 1.2;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -707,7 +707,7 @@
     .cell.empty .cell-label {
       background: #fafafa;
       border-color: #eee;
-      font-size: 9px;
+      font-size: calc(9px * var(--grid-font-scale));
       color: #999;
     }
     @keyframes pulse { from { transform: scale(1);} to { transform: scale(1.12);} }
@@ -1915,7 +1915,10 @@ ${options}`);
       const grid = document.getElementById('grid');
       const label = document.getElementById('grid-zoom-label');
       const slider = document.getElementById('grid-zoom-slider');
-      if (grid) grid.style.transform = `scale(${gridZoom})`;
+      if (grid) {
+        grid.style.transform = `scale(${gridZoom})`;
+        grid.style.setProperty('--grid-font-scale', `${(1 / gridZoom).toFixed(4)}`);
+      }
       if (label) label.textContent = `${Math.round(gridZoom * 100)}%`;
       if (slider) slider.value = String(Math.round(gridZoom * 100));
     }
