@@ -695,6 +695,23 @@
     .zoom-btn:hover { border-color: var(--primary); color: var(--primary); }
     .zoom-slider { width: 120px; accent-color: var(--primary); cursor: pointer; }
     .empty-tip { color: #999; margin-top: 40px; }
+    .cell.axis-cell {
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      pointer-events: none;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .cell.axis-cell .cell-label {
+      display: block;
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+      word-break: normal;
+      text-overflow: clip;
+    }
 
     .cell {
       width: 48px; height: 48px;
@@ -970,12 +987,19 @@
           </div>
           <div class="modal-field">
             <label>容器规格</label>
-            <select id="add-box-spec">
+            <select id="add-box-spec" onchange="toggleCustomBoxSpecInputs()">
               <option value="8,12">96孔板 (8x12)</option>
               <option value="9,9">9x9 (81格)</option>
               <option value="10,10">10x10 (100格)</option>
               <option value="12,6">12x6 (72格)</option>
+              <option value="custom">自定义行列</option>
             </select>
+          </div>
+          <div id="add-box-custom-wrap" class="modal-field hidden">
+            <label>自定义行标签（逗号/空格/换行分隔，例如：A,B,C）</label>
+            <input id="add-box-custom-rows" type="text" placeholder="例如：A,B,C,D" />
+            <label style="margin-top:8px;">自定义列标签（逗号/空格/换行分隔，例如：1,2,3）</label>
+            <input id="add-box-custom-cols" type="text" placeholder="例如：1,2,3,4,5" />
           </div>
         </div>
         <div class="modal-foot">
@@ -1345,6 +1369,8 @@
           name: b.name || b.title || `容器${idx + 1}`,
           rows: Number(b.rows || b.r || b.height || 8) || 8,
           cols: Number(b.cols || b.c || b.width || 12) || 12,
+          rowLabels: Array.isArray(b.rowLabels) ? b.rowLabels.map(v => String(v || '').trim()).filter(Boolean) : undefined,
+          colLabels: Array.isArray(b.colLabels) ? b.colLabels.map(v => String(v || '').trim()).filter(Boolean) : undefined,
           folderId,
           vials: (vials && typeof vials === 'object') ? vials : {}
         };
@@ -1465,6 +1491,24 @@
         if (!box.cols) { box.cols = 12; changed = true; }
         if (!box.vials) { box.vials = {}; changed = true; }
         if (!box.folderId || !db.folders[box.folderId]) { box.folderId = 'default'; changed = true; }
+        if (Array.isArray(box.rowLabels)) {
+          box.rowLabels = box.rowLabels.map(v => String(v || '').trim()).filter(Boolean).slice(0, Number(box.rows) || 0);
+          if (!box.rowLabels.length) { delete box.rowLabels; changed = true; }
+          else if (box.rowLabels.length !== (Number(box.rows) || 0)) {
+            const fallback = Array.from({ length: Number(box.rows) || 0 }, (_, i) => String.fromCharCode(65 + i));
+            box.rowLabels = fallback.map((v, i) => box.rowLabels[i] || v);
+            changed = true;
+          }
+        }
+        if (Array.isArray(box.colLabels)) {
+          box.colLabels = box.colLabels.map(v => String(v || '').trim()).filter(Boolean).slice(0, Number(box.cols) || 0);
+          if (!box.colLabels.length) { delete box.colLabels; changed = true; }
+          else if (box.colLabels.length !== (Number(box.cols) || 0)) {
+            const fallback = Array.from({ length: Number(box.cols) || 0 }, (_, i) => String(i + 1));
+            box.colLabels = fallback.map((v, i) => box.colLabels[i] || v);
+            changed = true;
+          }
+        }
       });
 
       if (changed) save();
@@ -2085,13 +2129,25 @@
       ].join('');
     }
 
+    function toggleCustomBoxSpecInputs() {
+      const spec = document.getElementById('add-box-spec');
+      const customWrap = document.getElementById('add-box-custom-wrap');
+      if (!spec || !customWrap) return;
+      customWrap.classList.toggle('hidden', spec.value !== 'custom');
+    }
+
     function addBox() {
       renderFolderOptions();
       const mask = document.getElementById('add-box-modal-mask');
       const name = document.getElementById('add-box-name');
       const spec = document.getElementById('add-box-spec');
+      const customRows = document.getElementById('add-box-custom-rows');
+      const customCols = document.getElementById('add-box-custom-cols');
       if (name) name.value = '';
       if (spec) spec.value = '8,12';
+      if (customRows) customRows.value = '';
+      if (customCols) customCols.value = '';
+      toggleCustomBoxSpecInputs();
       if (mask) mask.classList.remove('hidden');
       setTimeout(() => name?.focus(), 30);
     }
@@ -2106,11 +2162,25 @@
       const name = (document.getElementById('add-box-name')?.value || '').trim();
       if (!name) return alert('请输入容器名称。');
       const folderId = document.getElementById('add-box-folder')?.value;
-      const [rows, cols] = (document.getElementById('add-box-spec')?.value || '8,12').split(',').map(Number);
+      const specValue = document.getElementById('add-box-spec')?.value || '8,12';
       if (!folderId || !db.folders[folderId]) return alert('请选择有效位置文件夹。');
 
+      let rows = 8;
+      let cols = 12;
+      let rowLabels;
+      let colLabels;
+      if (specValue === 'custom') {
+        rowLabels = parseCustomAxisLabels(document.getElementById('add-box-custom-rows')?.value || '');
+        colLabels = parseCustomAxisLabels(document.getElementById('add-box-custom-cols')?.value || '');
+        if (!rowLabels.length || !colLabels.length) return alert('自定义规格至少需要 1 个行标签和 1 个列标签。');
+        rows = rowLabels.length;
+        cols = colLabels.length;
+      } else {
+        [rows, cols] = specValue.split(',').map(Number);
+      }
+
       const id = 'box_' + Date.now();
-      db.boxes[id] = { name, rows, cols, folderId, vials: {} };
+      db.boxes[id] = { name, rows, cols, rowLabels, colLabels, folderId, vials: {} };
       save();
       closeAddBoxModal();
       renderFolderList();
@@ -2248,18 +2318,55 @@ ${options}`);
     }
 
 
+    function parseCustomAxisLabels(value) {
+      return String(value || '')
+        .split(/[\n,，;；\s]+/)
+        .map(v => v.trim())
+        .filter(Boolean);
+    }
+
+    function getDefaultRowLabels(count) {
+      const labels = [];
+      for (let i = 0; i < count; i++) {
+        let n = i;
+        let label = '';
+        do {
+          label = String.fromCharCode(65 + (n % 26)) + label;
+          n = Math.floor(n / 26) - 1;
+        } while (n >= 0);
+        labels.push(label);
+      }
+      return labels;
+    }
+
     function getDisplayLayout(box) {
       // 12x6 规格按横向展示：6行x12列（仅改变可视化，不改存储坐标）
       if (box.rows === 12 && box.cols === 6) {
+        const rowLabels = (Array.isArray(box.rowLabels) && box.rowLabels.length === 6)
+          ? box.rowLabels
+          : getDefaultRowLabels(6);
+        const colLabels = (Array.isArray(box.colLabels) && box.colLabels.length === 12)
+          ? box.colLabels
+          : Array.from({ length: 12 }, (_, i) => String(i + 1));
         return {
           renderRows: 6,
           renderCols: 12,
+          rowLabels,
+          colLabels,
           toPos: (r, c) => `${c}-${r}`
         };
       }
+      const rows = Number(box.rows) || 8;
+      const cols = Number(box.cols) || 12;
       return {
-        renderRows: box.rows,
-        renderCols: box.cols,
+        renderRows: rows,
+        renderCols: cols,
+        rowLabels: (Array.isArray(box.rowLabels) && box.rowLabels.length === rows)
+          ? box.rowLabels
+          : getDefaultRowLabels(rows),
+        colLabels: (Array.isArray(box.colLabels) && box.colLabels.length === cols)
+          ? box.colLabels
+          : Array.from({ length: cols }, (_, i) => String(i + 1)),
         toPos: (r, c) => `${r}-${c}`
       };
     }
@@ -2334,10 +2441,27 @@ ${options}`);
 
       const box = db.boxes[currentBoxId];
       const layout = getDisplayLayout(box);
-      grid.style.gridTemplateColumns = `repeat(${layout.renderCols}, 48px)`;
+      grid.style.gridTemplateColumns = `repeat(${layout.renderCols + 1}, 48px)`;
       updateGridZoom();
 
+      const corner = document.createElement('div');
+      corner.className = 'cell axis-cell';
+      corner.innerHTML = `<div class="cell-label"></div>`;
+      grid.appendChild(corner);
+
+      for (let c = 1; c <= layout.renderCols; c++) {
+        const colHead = document.createElement('div');
+        colHead.className = 'cell axis-cell';
+        colHead.innerHTML = `<div class="cell-label">${layout.colLabels[c - 1] || c}</div>`;
+        grid.appendChild(colHead);
+      }
+
       for (let r = 1; r <= layout.renderRows; r++) {
+        const rowHead = document.createElement('div');
+        rowHead.className = 'cell axis-cell';
+        rowHead.innerHTML = `<div class="cell-label">${layout.rowLabels[r - 1] || r}</div>`;
+        grid.appendChild(rowHead);
+
         for (let c = 1; c <= layout.renderCols; c++) {
           const pos = layout.toPos(r, c);
           const vial = box.vials[pos];
@@ -2638,11 +2762,11 @@ ${options}`);
         aoa.push([`文件夹: ${folderName}`, `容器: ${b.name}`, `规格: ${b.rows}x${b.cols}`]);
 
         const header = ['行\列'];
-        for (let c = 1; c <= layout.renderCols; c++) header.push(`C${c}`);
+        for (let c = 1; c <= layout.renderCols; c++) header.push(layout.colLabels[c - 1] || `C${c}`);
         aoa.push(header);
 
         for (let r = 1; r <= layout.renderRows; r++) {
-          const row = [`R${r}`];
+          const row = [layout.rowLabels[r - 1] || `R${r}`];
           for (let c = 1; c <= layout.renderCols; c++) {
             const pos = layout.toPos(r, c);
             const v = b.vials[pos];
