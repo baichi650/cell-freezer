@@ -716,7 +716,7 @@
         <input id="box-search" class="sidebar-search" style="max-width:150px;padding:6px 8px;" type="text" placeholder="🔎 搜索容器..." oninput="handleBoxSidebarSearch()" />
       </div>
       <div id="box-list" class="list box-list"></div>
-      <button class="btn primary" style="width:100%" onclick="addBox()">+ 新建容器</button>
+      <button class="side-btn" style="width:100%" onclick="addBox()">+ 新建容器</button>
     </section>
   </aside>
 
@@ -808,6 +808,23 @@
         <div id="overview-tree" class="overview-tree"></div>
       </div>
     </section>
+
+
+    <div id="add-folder-modal-mask" class="modal-mask hidden" onclick="closeAddFolderModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-head">新增文件夹</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label>文件夹名称</label>
+            <input id="add-folder-name" type="text" placeholder="例如：液氮 / -80 / 默认位置" />
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeAddFolderModal()">取消</button>
+          <button class="btn primary" onclick="submitAddFolderModal()">创建</button>
+        </div>
+      </div>
+    </div>
 
 
     <div id="add-box-modal-mask" class="modal-mask hidden" onclick="closeAddBoxModal(event)">
@@ -1418,12 +1435,27 @@
     }
 
     function addFolder() {
-      const name = prompt('请输入位置文件夹名称：');
-      if (!name) return;
+      const mask = document.getElementById('add-folder-modal-mask');
+      const input = document.getElementById('add-folder-name');
+      if (input) input.value = '';
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => input?.focus(), 30);
+    }
+
+    function closeAddFolderModal(e) {
+      if (e && e.target && e.target.id !== 'add-folder-modal-mask') return;
+      const mask = document.getElementById('add-folder-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function submitAddFolderModal() {
+      const name = (document.getElementById('add-folder-name')?.value || '').trim();
+      if (!name) return alert('请输入位置文件夹名称。');
       const id = 'folder_' + Date.now();
-      db.folders[id] = { name: name.trim() };
+      db.folders[id] = { name };
       currentFolderId = id;
       save();
+      closeAddFolderModal();
       renderFolderOptions();
       renderFolderList();
       renderBoxFolderStrip();
