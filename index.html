@@ -267,7 +267,9 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .mini-tree-node.box { margin-left: 10px; }
+    .mini-tree-node.folder { font-weight: 600; }
+    .mini-tree-node.box { margin-left: 14px; font-size: 9px; }
+    .mini-tree-arrow { margin-right: 4px; color:#8fc7ff; }
     .mini-tree-node.active {
       border-color: #69c0ff;
       background: rgba(24,144,255,.45);
@@ -958,6 +960,7 @@
     let folderSortMode = false;
     let folderLongPressTimer = null;
     let sidebarCollapsed = false;
+    let collapsedNavExpandedFolders = new Set();
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
     const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
@@ -1351,24 +1354,34 @@
       applySidebarCollapsedState();
     }
 
+    function toggleCollapsedNavFolder(folderId, e) {
+      if (e) e.stopPropagation();
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderCollapsedNav();
+    }
+
     function renderCollapsedNav() {
       const wrap = document.getElementById('collapsed-nav');
       if (!wrap) return;
       const folderIds = Object.keys(db.folders);
-      const boxIds = Object.keys(db.boxes);
       let html = '<div class="mini-tree-title">位置</div>';
-      html += `<div class="mini-tree-node ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部</div>`;
+
       folderIds.forEach(fid => {
-        const n = db.folders[fid]?.name || fid;
-        html += `<div class="mini-tree-node ${currentFolderId === fid ? 'active' : ''}" onclick="setFolderFilter('${fid}')" title="${n}">${n}</div>`;
+        const fname = db.folders[fid]?.name || fid;
+        const expanded = collapsedNavExpandedFolders.has(fid);
+        const boxes = Object.keys(db.boxes).filter(bid => db.boxes[bid]?.folderId === fid);
+        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="setFolderFilter('${fid}')" title="${fname}"><span class="mini-tree-arrow" onclick="toggleCollapsedNavFolder('${fid}',event)">${expanded ? '▾' : '▸'}</span>${fname}</div>`;
+
+        if (expanded) {
+          boxes.forEach(bid => {
+            const bname = (db.boxes[bid]?.name || bid) + '(容器)';
+            html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${bname}">${bname}</div>`;
+          });
+          if (!boxes.length) html += `<div class="mini-tree-node box" title="空">(空)</div>`;
+        }
       });
-      html += '<div class="mini-tree-title">容器</div>';
-      boxIds.forEach(bid => {
-        const b = db.boxes[bid];
-        if (!b) return;
-        const n = b.name || bid;
-        html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${n}">${n}</div>`;
-      });
+
       wrap.innerHTML = html;
     }
 
@@ -1437,6 +1450,7 @@
       }
 
       normalizeData();
+      collapsedNavExpandedFolders = new Set(Object.keys(db.folders));
       renderFolderOptions();
       renderFolderList();
       renderBoxFolderStrip();
