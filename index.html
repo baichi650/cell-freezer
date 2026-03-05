@@ -215,7 +215,76 @@
       overflow: hidden;
       border-right: 1px solid rgba(255,255,255,.06);
     }
-    .sidebar-panel {
+    
+    .sidebar {
+      position: relative;
+      transition: width .2s ease, padding .2s ease;
+    }
+    .sidebar-toggle {
+      position: absolute;
+      right: -12px;
+      top: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid rgba(162,201,255,.6);
+      background: #10233d;
+      color: #d5ecff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    #collapsed-nav {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      border: 1px solid rgba(169,199,255,.3);
+      border-radius: 10px;
+      padding: 8px 4px;
+      background: rgba(7,20,38,.9);
+      overflow: auto;
+      gap: 6px;
+      flex-direction: column;
+    }
+    .mini-tree-title {
+      font-size: 10px;
+      color: #9dc8ef;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+    .mini-tree-node {
+      border: 1px solid rgba(162,201,255,.3);
+      border-radius: 6px;
+      padding: 4px;
+      text-align: center;
+      font-size: 10px;
+      color: #d4ecff;
+      background: rgba(18,39,66,.85);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mini-tree-node.box { margin-left: 10px; }
+    .mini-tree-node.active {
+      border-color: #69c0ff;
+      background: rgba(24,144,255,.45);
+      color: #fff;
+      font-weight: 700;
+    }
+    body.sidebar-collapsed .sidebar {
+      width: 76px;
+      padding: 12px 8px;
+    }
+    body.sidebar-collapsed .sidebar-panel {
+      display: none;
+    }
+    body.sidebar-collapsed #collapsed-nav {
+      display: flex;
+    }
+.sidebar-panel {
       border: 1px solid rgba(169,199,255,.35);
       border-radius: 10px;
       padding: 10px;
@@ -699,6 +768,8 @@
 </head>
 <body>
     <aside class="sidebar">
+    <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()" title="收起/展开导航栏">◀</button>
+    <div id="collapsed-nav"></div>
         <section class="sidebar-panel" style="flex:1;">
       <div class="sidebar-sub">位置 (Location)</div>
       <input id="folder-search" class="sidebar-search" type="text" placeholder="🔎 搜索位置..." oninput="handleFolderSidebarSearch()" />
@@ -872,6 +943,7 @@
     const AUTO_BACKUP_MODE_KEY = 'cell_freezer_auto_backup_mode';
     const TOP_TOOLBAR_COLLAPSED_KEY = 'cell_freezer_top_toolbar_collapsed';
     const HEADER_SECTION_COLLAPSE_KEY = 'cell_freezer_header_section_collapse_state';
+    const SIDEBAR_COLLAPSED_KEY = 'cell_freezer_sidebar_collapsed';
 
     let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
     let currentBoxId = null;
@@ -885,6 +957,7 @@
     let boxFilterMode = 'all';
     let folderSortMode = false;
     let folderLongPressTimer = null;
+    let sidebarCollapsed = false;
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
     const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
@@ -1257,6 +1330,57 @@
     }
 
 
+
+    function isSidebarCollapsed() {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    }
+
+    function applySidebarCollapsedState() {
+      sidebarCollapsed = isSidebarCollapsed();
+      document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+      const btn = document.getElementById('sidebar-toggle');
+      if (btn) {
+        btn.textContent = sidebarCollapsed ? '▶' : '◀';
+        btn.title = sidebarCollapsed ? '展开导航栏' : '收起导航栏';
+      }
+      renderCollapsedNav();
+    }
+
+    function toggleSidebar() {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, isSidebarCollapsed() ? '0' : '1');
+      applySidebarCollapsedState();
+    }
+
+    function renderCollapsedNav() {
+      const wrap = document.getElementById('collapsed-nav');
+      if (!wrap) return;
+      const folderIds = Object.keys(db.folders);
+      const boxIds = Object.keys(db.boxes);
+      let html = '<div class="mini-tree-title">位置</div>';
+      html += `<div class="mini-tree-node ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部</div>`;
+      folderIds.forEach(fid => {
+        const n = db.folders[fid]?.name || fid;
+        html += `<div class="mini-tree-node ${currentFolderId === fid ? 'active' : ''}" onclick="setFolderFilter('${fid}')" title="${n}">${n}</div>`;
+      });
+      html += '<div class="mini-tree-title">容器</div>';
+      boxIds.forEach(bid => {
+        const b = db.boxes[bid];
+        if (!b) return;
+        const n = b.name || bid;
+        html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${n}">${n}</div>`;
+      });
+      wrap.innerHTML = html;
+    }
+
+    function jumpCollapsedBox(boxId) {
+      const box = db.boxes[boxId];
+      if (!box) return;
+      currentFolderId = box.folderId || 'all';
+      renderFolderList();
+      switchBox(boxId);
+      renderCollapsedNav();
+    }
+
     async function handleBackupStatusClick() {
       if (!autoBackupEnabled) {
         return await enableFolderAutoBackup();
@@ -1298,6 +1422,7 @@
       const next = isTopToolbarCollapsed() ? '0' : '1';
       localStorage.setItem(TOP_TOOLBAR_COLLAPSED_KEY, next);
       applyTopToolbarCollapsedState();
+      applySidebarCollapsedState();
     }
 
     async function init() {
@@ -1316,6 +1441,7 @@
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
       renderBoxFilters();
       updateWarningBoard();
       renderOverviewFolderStrip();
@@ -1341,6 +1467,7 @@
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
     }
 
     function setOverviewFolderFilter(folderId) {
@@ -1405,6 +1532,7 @@
       save();
       renderFolderList();
       renderBoxList();
+      renderCollapsedNav();
       renderOverviewFolderStrip();
       updateOverview();
     }
@@ -1460,6 +1588,7 @@
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
       renderOverviewFolderStrip();
       updateOverview();
     }
@@ -1647,6 +1776,7 @@ ${options}`);
       renderFolderList();
       renderBoxFolderStrip();
       renderBoxList();
+      renderCollapsedNav();
       updatePanel();
       updateWarningBoard();
       renderOverviewFolderStrip();
@@ -1710,6 +1840,7 @@ ${options}`);
         list.appendChild(title);
         folderIds.forEach(renderBoxItem);
       });
+      renderCollapsedNav();
     }
 
     function switchBox(id) {
