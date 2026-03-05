@@ -360,6 +360,7 @@
     .item.tree-item { background: rgba(17,42,69,.85); }
     .tree-arrow { font-size: 11px; color: #9fd1ff; margin-right: 6px; }
     .tree-arrow-btn { cursor: pointer; user-select: none; display: inline-flex; width: 12px; justify-content: center; }
+    .tree-prefix { color: #7fb0da; margin-right: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; white-space: pre; }
 
     .folder-sort-tip {
       font-size: 11px;
@@ -1760,8 +1761,15 @@
     function getFolderColor(folderId) {
       const palette = ['#1677ff', '#13c2c2', '#722ed1', '#eb2f96', '#fa8c16', '#52c41a', '#2f54eb', '#f5222d'];
       if (!folderId || folderId === 'all') return '#69c0ff';
+      let rootId = folderId;
+      const guard = new Set();
+      while (db.folders[rootId]?.parentId && !guard.has(rootId)) {
+        guard.add(rootId);
+        rootId = db.folders[rootId].parentId;
+      }
+      const seed = rootId || folderId;
       let hash = 0;
-      for (let i = 0; i < folderId.length; i++) hash = folderId.charCodeAt(i) + ((hash << 5) - hash);
+      for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
       return palette[Math.abs(hash) % palette.length];
     }
 
@@ -1947,7 +1955,9 @@
       e.stopPropagation();
       const next = prompt('请输入新的文件夹名称：', db.folders[id]?.name || '');
       if (!next) return;
-      db.folders[id].name = next.trim();
+      const name = next.trim();
+      if (!name) return;
+      db.folders[id].name = name;
       save();
       renderFolderOptions();
       renderFolderList();
@@ -2033,6 +2043,8 @@
       const visibleFolders = new Set();
       const visibleBoxesByFolder = {};
 
+      const buildTreePrefix = (lineage, isLast) => `${lineage.slice(0, -1).map(hasNext => hasNext ? '│ ' : '  ').join('')}${isLast ? '└ ' : '├ '}`;
+
       Object.keys(db.boxes).forEach(bid => {
         const b = db.boxes[bid];
         if (!b) return;
@@ -2070,7 +2082,7 @@
         });
       }
 
-      const renderNode = (fid, depth) => {
+      const renderNode = (fid, depth, lineage = []) => {
         if (key && !visibleFolders.has(fid)) return;
         const folder = db.folders[fid];
         const descendants = new Set(getDescendantFolderIds(fid));
@@ -2088,9 +2100,10 @@
           : '';
         const arrow = expandable ? (expanded ? '▾' : '▸') : '•';
         const arrowClick = expandable ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
+        const folderPrefix = buildTreePrefix(lineage, lineage.length ? !lineage[lineage.length - 1] : true);
         div.innerHTML = `
-          <div class="item-info" style="padding-left:${depth * 12}px">
-            <span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}
+          <div class="item-info" style="padding-left:${depth * 8}px">
+            <span class="tree-prefix">${folderPrefix}</span><span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}
           </div>
           <div>
             <button class="mini-btn" title="重命名" onclick="renameFolder('${fid}',event)">✎</button>
@@ -2104,21 +2117,29 @@
         list.appendChild(div);
 
         if (!expanded) return;
-        childIds.forEach(cid => renderNode(cid, depth + 1));
+        childIds.forEach((cid, idx) => renderNode(cid, depth + 1, [...lineage, idx < childIds.length - 1 || folderBoxIds.length > 0]));
 
         folderBoxIds.forEach(bid => {
           const b = db.boxes[bid];
           if (!b) return;
           const boxDiv = document.createElement('div');
-          boxDiv.className = `item tree-item ${currentBoxId === bid ? 'active' : ''}`;
+          boxDiv.className = `item box-item tree-item ${currentBoxId === bid ? 'active' : ''}`;
           boxDiv.style.borderLeftColor = getFolderColor(fid);
-          boxDiv.innerHTML = `<div class="item-info" style="padding-left:${(depth + 1) * 12}px"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>`;
+          const boxPrefix = buildTreePrefix([...lineage, false], true);
+          boxDiv.innerHTML = `
+            <div class="item-info" style="padding-left:${(depth + 1) * 8}px"><span class="tree-prefix">${boxPrefix}</span><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${b.rows}x${b.cols}</span></div>
+            <div>
+              <button class="mini-btn" title="重命名" onclick="renameBox('${bid}',event)">✎</button>
+              <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${bid}',event)">🗑</button>
+            </div>
+          `;
           boxDiv.onclick = () => { searchHighlightPos = null; switchBox(bid); };
           list.appendChild(boxDiv);
         });
       };
 
-      (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
+      const roots = childrenMap[null] || [];
+      roots.forEach((fid, idx) => renderNode(fid, 0, [idx < roots.length - 1]));
     }
 
     function renderBoxFolderStrip() {
@@ -2218,6 +2239,26 @@ ${options}`);
       renderBoxList();
       renderOverviewFolderStrip();
       updateOverview();
+    }
+
+
+    function renameBox(id, e) {
+      e.stopPropagation();
+      const box = db.boxes[id];
+      if (!box) return;
+      const next = prompt('请输入新的容器名称：', box.name || '');
+      if (!next) return;
+      const name = next.trim();
+      if (!name) return;
+      box.name = name;
+      save();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+      renderOverviewFolderStrip();
+      updateOverview();
+      updateBoxLocationBadge();
     }
 
     function deleteBox(id, e) {
