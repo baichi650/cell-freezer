@@ -412,6 +412,58 @@
     .search-item:hover { background: #f0f7ff; }
     .loc-tag { font-size: 11px; background: #f5f5f5; border-radius: 4px; color: #666; padding: 2px 6px; }
 
+
+    .tool-sketch {
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 10px;
+      background: #0e1117;
+      color: #fff;
+      padding: 10px 12px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    }
+    .tool-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.16);
+    }
+    .tool-row:last-child { border-bottom: none; }
+    .tool-label { font-weight: 700; color: #f4f7ff; }
+    .tool-search {
+      width: min(640px, 100%);
+      border: 1px solid rgba(164,205,255,.5);
+      border-radius: 8px;
+      background: #111b2b;
+      color: #fff;
+      padding: 9px 11px;
+      font-size: 14px;
+    }
+    .tool-search::placeholder { color: #9dc3ef; }
+    .tool-link-btn {
+      border: 1px solid rgba(164,205,255,.45);
+      border-radius: 7px;
+      background: transparent;
+      color: #fff;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .tool-link-btn:hover { border-color: #69c0ff; color: #69c0ff; }
+    .tool-select {
+      border: 1px solid rgba(164,205,255,.45);
+      border-radius: 7px;
+      background: #121d2f;
+      color: #fff;
+      padding: 5px 8px;
+      font-size: 13px;
+    }
+    .tool-status { color: #ffd666; font-weight: 700; }
+    .tool-status.ok { color: #95de64; }
+    .tool-mini-log { color: #d6e8ff; font-size: 13px; }
+
     .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
     .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
@@ -567,53 +619,57 @@
 
   <main class="main">
     <div class="header">
-      <div class="header-top">
-        <div class="search-wrap compact">
-          <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
+      <div class="tool-sketch">
+        <div class="tool-row">
+          <span class="tool-label">[ 🔎 全局搜索：细胞名/代数/条码 ]</span>
+          <input id="global-search" class="tool-search" type="text" placeholder="输入关键词快速定位样本" oninput="handleGlobalSearch()" />
           <div id="search-dd" class="search-dd"></div>
         </div>
-        <div class="header-top-right">
-          <button class="btn compact" onclick="switchView('grid')">🧱 容器页面</button>
-          <button class="btn compact" onclick="switchView('overview')">📊 总览页面</button>
-          <span id="backup-dir-top" class="meta-pill dir">📂 自动备份目录：auto-backups（JSON）</span>
-          <span id="backup-status-top" class="meta-pill state local">自动备份：开启（本地备份进行中，尚未授权目录）</span>
-        </div>
-      </div>
 
-      <div id="collapsed-toolbar-buttons" class="toolbar-collapsed-buttons hidden">
-        <button id="collapsed-main-actions" class="btn compact" onclick="expandHeaderSection('main-actions')">页面与数据操作（展开）</button>
-        <button id="collapsed-backup-actions" class="btn compact" onclick="expandHeaderSection('backup-actions')">自动备份设置（展开）</button>
-      </div>
-
-      <div id="main-actions-card" class="toolbar-card">
-        <div class="toolbar-head">
-          <div class="toolbar-title">页面与数据操作</div>
-          <button id="toggle-main-actions" class="btn compact" onclick="toggleHeaderSection('main-actions')">收起</button>
-        </div>
-        <div id="main-actions" class="toolbar-actions">
-          <button class="btn compact" onclick="exportExcel()">📗 导出Excel</button>
-          <button class="btn compact" onclick="exportJSON()">📤 导出备份</button>
-          <button class="btn compact" onclick="triggerImport()">📥 导入数据</button>
+        <div class="tool-row" id="main-actions-card">
+          <span class="tool-label">数据操作:</span>
+          <button class="tool-link-btn" onclick="triggerImport()">导入</button>
+          <button class="tool-link-btn" onclick="exportExcel()">导出Excel</button>
+          <button class="tool-link-btn" onclick="exportJSON()">导出备份JSON</button>
+          <span style="opacity:.75">|</span>
+          <span class="tool-label">范围:</span>
+          <select id="view-scope" class="tool-select" onchange="handleToolbarScopeChange()">
+            <option value="grid">容器页面</option>
+            <option value="overview">总览页面</option>
+          </select>
           <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
         </div>
-      </div>
 
-      <div id="backup-actions-card" class="toolbar-card">
-        <div class="toolbar-head">
-          <div class="toolbar-title">自动备份设置</div>
-          <button id="toggle-backup-actions" class="btn compact" onclick="toggleHeaderSection('backup-actions')">收起</button>
+        <div class="tool-row" id="backup-actions-card">
+          <span class="tool-label">自动备份:</span>
+          <label style="display:inline-flex;align-items:center;gap:6px;">
+            <input id="backup-enable-switch" type="checkbox" onchange="toggleAutoBackupSwitch(this.checked)" />
+            <span>开关</span>
+          </label>
+          <span class="tool-label">目录:</span>
+          <span id="backup-dir-top">auto-backups</span>
+          <span class="tool-label">格式:</span><span>JSON</span>
+          <span class="tool-label">频率:</span>
+          <select id="backup-frequency" class="tool-select">
+            <option value="30">30min</option>
+            <option value="15">15min</option>
+            <option value="60">60min</option>
+          </select>
         </div>
-        <div id="backup-actions" class="toolbar-actions backup-actions">
-          <div class="backup-btns">
-            <button class="btn compact" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
-            <button class="btn compact" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
-            <button class="btn compact" onclick="disableAutoBackup()">⏹ 关闭自动备份</button>
-          </div>
-          <div class="backup-meta">
-            <span class="meta-pill dir">📂 自动备份目录：auto-backups（JSON）</span>
-            <span id="backup-status" class="meta-pill state local">自动备份：开启（本地备份进行中，尚未授权目录）</span>
-          </div>
+
+        <div class="tool-row">
+          <span class="tool-label">状态:</span>
+          <span id="backup-status" class="tool-status">⚠️ 未授权目录</span>
+          <button class="tool-link-btn" onclick="enableFolderAutoBackup()">立即授权</button>
+          <button class="tool-link-btn" onclick="changeBackupFolder()">更改目录</button>
+          <button class="tool-link-btn" onclick="runImmediateBackup()">立即备份</button>
         </div>
+
+        <details class="tool-row" style="display:block;">
+          <summary class="tool-label" style="cursor:pointer;">高级/日志（折叠，默认收起）</summary>
+          <div class="tool-mini-log" style="margin-top:8px;">- 最近备份：<span id="last-backup-log">--</span></div>
+          <div class="tool-mini-log">- ...</div>
+        </details>
       </div>
     </div>
 
@@ -798,12 +854,21 @@
       const targets = [document.getElementById('backup-status'), document.getElementById('backup-status-top')].filter(Boolean);
       targets.forEach(el => {
         el.textContent = text;
-        el.classList.remove('local', 'off');
-        if (mode === 'local') el.classList.add('local');
-        if (mode === 'off') el.classList.add('off');
+        el.classList.remove('local', 'off', 'ok', 'tool-status');
+        el.classList.add('tool-status');
+        if (mode === 'folder') el.classList.add('ok');
       });
       const dirTop = document.getElementById('backup-dir-top');
-      if (dirTop) dirTop.textContent = `📂 自动备份目录：${AUTO_BACKUP_DIR}（JSON）`;
+      if (dirTop) dirTop.textContent = AUTO_BACKUP_DIR;
+      const sw = document.getElementById('backup-enable-switch');
+      if (sw) sw.checked = autoBackupEnabled;
+      const log = document.getElementById('last-backup-log');
+      if (log && localStorage.getItem(AUTO_BACKUP_KEY)) {
+        try {
+          const latest = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY));
+          if (latest?.savedAt) log.textContent = new Date(latest.savedAt).toLocaleTimeString('zh-CN', { hour12: false });
+        } catch {}
+      }
     }
 
     async function refreshBackupStatus() {
@@ -993,24 +1058,11 @@
     }
 
     function applyHeaderSectionState() {
-      const state = loadHeaderSectionState();
-      const sections = [
-        { id: 'main-actions', cardId: 'main-actions-card', collapsedBtnId: 'collapsed-main-actions' },
-        { id: 'backup-actions', cardId: 'backup-actions-card', collapsedBtnId: 'collapsed-backup-actions' }
-      ];
-
-      let collapsedCount = 0;
-      sections.forEach(({ id, cardId, collapsedBtnId }) => {
-        const card = document.getElementById(cardId);
-        const collapsedBtn = document.getElementById(collapsedBtnId);
-        const collapsed = state[id] === true;
-        if (card) card.classList.toggle('hidden', collapsed);
-        if (collapsedBtn) collapsedBtn.classList.toggle('hidden', !collapsed);
-        if (collapsed) collapsedCount++;
-      });
-
-      const collapsedWrap = document.getElementById('collapsed-toolbar-buttons');
-      if (collapsedWrap) collapsedWrap.classList.toggle('hidden', collapsedCount === 0);
+      // 新版工具条不再使用分块收起，历史状态忽略并确保显示
+      const mainCard = document.getElementById('main-actions-card');
+      const backupCard = document.getElementById('backup-actions-card');
+      if (mainCard) mainCard.classList.remove('hidden');
+      if (backupCard) backupCard.classList.remove('hidden');
     }
 
     function setHeaderSectionCollapsed(sectionId, collapsed) {
@@ -1044,6 +1096,24 @@
       });
 
       if (changed) save();
+    }
+
+
+    function handleToolbarScopeChange() {
+      const v = document.getElementById('view-scope')?.value || 'grid';
+      switchView(v === 'overview' ? 'overview' : 'grid');
+    }
+
+    async function toggleAutoBackupSwitch(checked) {
+      if (checked) await enableFolderAutoBackup();
+      else await disableAutoBackup();
+    }
+
+    function runImmediateBackup() {
+      saveAutoBackup('manual-toolbar');
+      const log = document.getElementById('last-backup-log');
+      if (log) log.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      alert('已触发立即备份。');
     }
 
     async function init() {
