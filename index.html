@@ -204,7 +204,8 @@
     }
 
     .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
-    .header { display: flex; gap: 10px; align-items: center; }
+    .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+    .header .row { flex-wrap: wrap; }
     .search-wrap { flex: 1; position: relative; }
     .search { width: 100%; padding: 12px; border: 1px solid #d9d9d9; border-radius: 8px; }
     .search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(24,144,255,.2); }
@@ -382,7 +383,7 @@
         <input id="global-search" class="search" type="text" placeholder="🔍 全局搜索：细胞名称 / 代数" oninput="handleGlobalSearch()" />
         <div id="search-dd" class="search-dd"></div>
       </div>
-      <div class="row" style="flex-wrap:wrap;">
+      <div class="row">
         <button class="btn" onclick="switchView('grid')">🧱 容器页面</button>
         <button class="btn" onclick="switchView('overview')">📊 总览页面</button>
         <button class="btn" onclick="exportExcel()">📗 导出Excel</button>
@@ -390,7 +391,7 @@
         <button class="btn" onclick="triggerImport()">📥 导入数据</button>
         <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
       </div>
-      <div class="row" style="align-items:center; flex-wrap:wrap;">
+      <div class="row" style="align-items:center;">
         <div class="muted">自动备份目录：<code>auto-backups</code>（JSON）</div>
         <button class="btn" onclick="enableFolderAutoBackup()">✅ 启用自动备份</button>
         <button class="btn" onclick="changeBackupFolder()">📁 更改备份文件夹</button>
