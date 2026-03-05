@@ -649,12 +649,15 @@
 
         .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
     .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-    .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
+    .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; position: relative; }
     .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; }
-    .grid-zoom-controls { position: sticky; top: 0; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.95); border: 1px solid #e8e8e8; border-radius: 8px; padding: 6px; z-index: 5; }
+    .grid-zoom-controls { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.96); border: 1px solid #e8e8e8; border-radius: 10px; padding: 6px 8px; z-index: 12; box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: grab; }
+    .grid-zoom-controls.dragging { cursor: grabbing; }
+    .zoom-drag-handle { color: #999; font-size: 14px; padding: 0 2px; user-select: none; }
     .zoom-label { font-size: 12px; color: #666; min-width: 46px; text-align: center; }
     .zoom-btn { border: 1px solid #d9d9d9; border-radius: 6px; background: #fff; width: 28px; height: 28px; line-height: 1; cursor: pointer; }
     .zoom-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .zoom-slider { width: 120px; accent-color: var(--primary); cursor: pointer; }
     .empty-tip { color: #999; margin-top: 40px; }
 
     .cell {
@@ -850,9 +853,11 @@
 
     <section id="grid-view" class="content">
       <div class="view">
-        <div class="grid-zoom-controls">
+        <div id="grid-zoom-controls" class="grid-zoom-controls" title="拖动可移动缩放工具条">
+          <span class="zoom-drag-handle">⠿</span>
           <button class="zoom-btn" onclick="zoomGridOut()" title="缩小">－</button>
           <span id="grid-zoom-label" class="zoom-label">100%</span>
+          <input id="grid-zoom-slider" class="zoom-slider" type="range" min="60" max="180" step="5" value="100" oninput="handleGridZoomSlider(this.value)" title="快速调整缩放" />
           <button class="zoom-btn" onclick="zoomGridIn()" title="放大">＋</button>
           <button class="zoom-btn" onclick="resetGridZoom()" title="重置">⟲</button>
         </div>
@@ -974,6 +979,7 @@
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
     let gridZoom = 1;
+    let zoomControlDragging = null;
     const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
     if (savedEnabledState === null) localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
     let autoBackupEnabled = (savedEnabledState ?? '1') !== '0';
@@ -1485,6 +1491,7 @@
       applyHeaderSectionState();
       applyTopToolbarCollapsedState();
       applySidebarCollapsedState();
+      initGridZoomControls();
       updateGridZoom();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
@@ -1907,8 +1914,10 @@ ${options}`);
     function updateGridZoom() {
       const grid = document.getElementById('grid');
       const label = document.getElementById('grid-zoom-label');
+      const slider = document.getElementById('grid-zoom-slider');
       if (grid) grid.style.transform = `scale(${gridZoom})`;
       if (label) label.textContent = `${Math.round(gridZoom * 100)}%`;
+      if (slider) slider.value = String(Math.round(gridZoom * 100));
     }
 
     function setGridZoom(next) {
@@ -1916,9 +1925,51 @@ ${options}`);
       updateGridZoom();
     }
 
+    function handleGridZoomSlider(value) {
+      const pct = Number(value);
+      if (Number.isNaN(pct)) return;
+      setGridZoom(pct / 100);
+    }
+
     function zoomGridIn() { setGridZoom(gridZoom + 0.1); }
     function zoomGridOut() { setGridZoom(gridZoom - 0.1); }
     function resetGridZoom() { setGridZoom(1); }
+
+    function initGridZoomControls() {
+      const controls = document.getElementById('grid-zoom-controls');
+      const view = document.querySelector('#grid-view .view');
+      if (!controls || !view || controls.dataset.dragReady === '1') return;
+      controls.dataset.dragReady = '1';
+
+      controls.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button, input')) return;
+        const viewRect = view.getBoundingClientRect();
+        const ctrlRect = controls.getBoundingClientRect();
+        zoomControlDragging = {
+          offsetX: e.clientX - ctrlRect.left,
+          offsetY: e.clientY - ctrlRect.top,
+          viewRect
+        };
+        controls.classList.add('dragging');
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!zoomControlDragging) return;
+        const { offsetX, offsetY, viewRect } = zoomControlDragging;
+        const left = Math.min(Math.max(e.clientX - viewRect.left - offsetX, 0), Math.max(viewRect.width - controls.offsetWidth, 0));
+        const top = Math.min(Math.max(e.clientY - viewRect.top - offsetY, 0), Math.max(viewRect.height - controls.offsetHeight, 0));
+        controls.style.left = `${left}px`;
+        controls.style.top = `${top}px`;
+        controls.style.right = 'auto';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!zoomControlDragging) return;
+        zoomControlDragging = null;
+        controls.classList.remove('dragging');
+      });
+    }
 
     function renderGrid() {
       const grid = document.getElementById('grid');
