@@ -650,7 +650,11 @@
         .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
     .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
-    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; }
+    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; }
+    .grid-zoom-controls { position: sticky; top: 0; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.95); border: 1px solid #e8e8e8; border-radius: 8px; padding: 6px; z-index: 5; }
+    .zoom-label { font-size: 12px; color: #666; min-width: 46px; text-align: center; }
+    .zoom-btn { border: 1px solid #d9d9d9; border-radius: 6px; background: #fff; width: 28px; height: 28px; line-height: 1; cursor: pointer; }
+    .zoom-btn:hover { border-color: var(--primary); color: var(--primary); }
     .empty-tip { color: #999; margin-top: 40px; }
 
     .cell {
@@ -846,6 +850,12 @@
 
     <section id="grid-view" class="content">
       <div class="view">
+        <div class="grid-zoom-controls">
+          <button class="zoom-btn" onclick="zoomGridOut()" title="缩小">－</button>
+          <span id="grid-zoom-label" class="zoom-label">100%</span>
+          <button class="zoom-btn" onclick="zoomGridIn()" title="放大">＋</button>
+          <button class="zoom-btn" onclick="resetGridZoom()" title="重置">⟲</button>
+        </div>
         <div id="empty-tip" class="empty-tip">请在左侧选择或新增一个容器</div>
         <div id="grid" class="grid"></div>
       </div>
@@ -963,6 +973,7 @@
     let collapsedNavExpandedFolders = new Set();
     let collapsedOverviewFolders = new Set();
     let collapsedOverviewBoxes = new Set();
+    let gridZoom = 1;
     const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
     if (savedEnabledState === null) localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
     let autoBackupEnabled = (savedEnabledState ?? '1') !== '0';
@@ -1335,7 +1346,8 @@
 
 
     function isSidebarCollapsed() {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+      const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      return saved === null ? true : saved === '1';
     }
 
     function applySidebarCollapsedState() {
@@ -1472,6 +1484,8 @@
       refreshBackupStatus();
       applyHeaderSectionState();
       applyTopToolbarCollapsedState();
+      applySidebarCollapsedState();
+      updateGridZoom();
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
 
@@ -1890,6 +1904,22 @@ ${options}`);
       };
     }
 
+    function updateGridZoom() {
+      const grid = document.getElementById('grid');
+      const label = document.getElementById('grid-zoom-label');
+      if (grid) grid.style.transform = `scale(${gridZoom})`;
+      if (label) label.textContent = `${Math.round(gridZoom * 100)}%`;
+    }
+
+    function setGridZoom(next) {
+      gridZoom = Math.max(0.6, Math.min(1.8, Number(next.toFixed(2))));
+      updateGridZoom();
+    }
+
+    function zoomGridIn() { setGridZoom(gridZoom + 0.1); }
+    function zoomGridOut() { setGridZoom(gridZoom - 0.1); }
+    function resetGridZoom() { setGridZoom(1); }
+
     function renderGrid() {
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
@@ -1898,6 +1928,7 @@ ${options}`);
       const box = db.boxes[currentBoxId];
       const layout = getDisplayLayout(box);
       grid.style.gridTemplateColumns = `repeat(${layout.renderCols}, 48px)`;
+      updateGridZoom();
 
       for (let r = 1; r <= layout.renderRows; r++) {
         for (let c = 1; c <= layout.renderCols; c++) {
