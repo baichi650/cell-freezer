@@ -902,6 +902,10 @@
             <label>文件夹名称</label>
             <input id="add-folder-name" type="text" placeholder="例如：液氮 / -80 / 默认位置" />
           </div>
+          <div class="modal-field">
+            <label>上级文件夹</label>
+            <select id="add-folder-parent"></select>
+          </div>
         </div>
         <div class="modal-foot">
           <button class="btn" onclick="closeAddFolderModal()">取消</button>
@@ -1332,7 +1336,16 @@
       let changed = false;
       if (!db.folders || typeof db.folders !== 'object') { db.folders = {}; changed = true; }
       if (!db.boxes || typeof db.boxes !== 'object') { db.boxes = {}; changed = true; }
-      if (!Object.keys(db.folders).length) { db.folders.default = { name: '默认位置' }; changed = true; }
+      if (!Object.keys(db.folders).length) { db.folders.default = { name: '默认位置', parentId: null }; changed = true; }
+
+      getOrderedFolderIds().forEach(fid => {
+        const f = db.folders[fid] || {};
+        if (!f.name) { f.name = fid; changed = true; }
+        if (!Object.prototype.hasOwnProperty.call(f, 'parentId')) { f.parentId = null; changed = true; }
+        if (f.parentId === fid || (f.parentId && !db.folders[f.parentId])) { f.parentId = null; changed = true; }
+        db.folders[fid] = f;
+      });
+      if (db.folders.default && db.folders.default.parentId !== null) { db.folders.default.parentId = null; changed = true; }
 
       Object.values(db.boxes).forEach(box => {
         if (box.size && !box.rows) { box.rows = box.size; box.cols = box.size; changed = true; }
@@ -1385,24 +1398,26 @@
     function renderCollapsedNav() {
       const wrap = document.getElementById('collapsed-nav');
       if (!wrap) return;
-      const folderIds = Object.keys(db.folders);
+      const childrenMap = getFolderChildrenMap();
       let html = '<div class="mini-tree-title">位置</div>';
 
-      folderIds.forEach(fid => {
+      const renderNode = (fid, depth) => {
         const fname = db.folders[fid]?.name || fid;
         const expanded = collapsedNavExpandedFolders.has(fid);
         const boxes = Object.keys(db.boxes).filter(bid => db.boxes[bid]?.folderId === fid);
-        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="handleCollapsedFolderClick('${fid}')" title="${fname}"><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span>${fname}</div>`;
+        html += `<div class="mini-tree-node folder ${currentFolderId === fid ? 'active' : ''}" onclick="handleCollapsedFolderClick('${fid}')" title="${fname}" style="padding-left:${6 + depth * 10}px"><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span>${fname}</div>`;
 
         if (expanded) {
+          (childrenMap[fid] || []).forEach(childId => renderNode(childId, depth + 1));
           boxes.forEach(bid => {
             const bname = (db.boxes[bid]?.name || bid) + '(容器)';
-            html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${bname}">${bname}</div>`;
+            html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${bname}" style="padding-left:${18 + depth * 10}px">${bname}</div>`;
           });
-          if (!boxes.length) html += `<div class="mini-tree-node box" title="空">(空)</div>`;
+          if (!boxes.length && !(childrenMap[fid] || []).length) html += `<div class="mini-tree-node box" title="空" style="padding-left:${18 + depth * 10}px">(空)</div>`;
         }
-      });
+      };
 
+      (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
       wrap.innerHTML = html;
     }
 
@@ -1492,6 +1507,68 @@
       if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
     }
 
+    function getFolderChildrenMap() {
+      const map = {};
+      getOrderedFolderIds().forEach(fid => {
+        const parentId = db.folders[fid]?.parentId || null;
+        if (!map[parentId]) map[parentId] = [];
+        map[parentId].push(fid);
+      });
+      return map;
+    }
+
+    function getOrderedFolderIds() {
+      const map = getFolderChildrenMap();
+      const ordered = [];
+      const visited = new Set();
+      const walk = (parentId) => {
+        (map[parentId] || []).forEach(fid => {
+          if (visited.has(fid)) return;
+          visited.add(fid);
+          ordered.push(fid);
+          walk(fid);
+        });
+      };
+      walk(null);
+      Object.keys(db.folders).forEach(fid => { if (!visited.has(fid)) ordered.push(fid); });
+      return ordered;
+    }
+
+    function getFolderDepth(folderId) {
+      let depth = 0;
+      let cur = db.folders[folderId]?.parentId || null;
+      const guard = new Set([folderId]);
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        depth += 1;
+        cur = db.folders[cur]?.parentId || null;
+      }
+      return depth;
+    }
+
+    function getDescendantFolderIds(folderId) {
+      const map = getFolderChildrenMap();
+      const out = [];
+      const walk = (fid) => {
+        out.push(fid);
+        (map[fid] || []).forEach(walk);
+      };
+      walk(folderId);
+      return out;
+    }
+
+    function getFolderPathName(folderId) {
+      const names = [];
+      let cur = folderId;
+      const guard = new Set();
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        names.unshift(db.folders[cur].name || cur);
+        cur = db.folders[cur].parentId || null;
+      }
+      return names.join(' / ');
+    }
+
     function getFolderColor(folderId) {
       const palette = ['#1677ff', '#13c2c2', '#722ed1', '#eb2f96', '#fa8c16', '#52c41a', '#2f54eb', '#f5222d'];
       if (!folderId || folderId === 'all') return '#69c0ff';
@@ -1516,10 +1593,10 @@
 
     function renderOverviewFolderStrip() {
       const strip = document.getElementById('overview-folder-strip');
-      const folderIds = Object.keys(db.folders);
+      const folderIds = getOrderedFolderIds();
       strip.innerHTML = [
         `<div class="overview-chip ${currentOverviewFolderId === 'all' ? 'active' : ''}" onclick="setOverviewFolderFilter('all')">全部文件夹</div>`,
-        ...folderIds.map(fid => `<div class="overview-chip ${currentOverviewFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setOverviewFolderFilter('${fid}')">${db.folders[fid].name}</div>`)
+        ...folderIds.map(fid => `<div class="overview-chip ${currentOverviewFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setOverviewFolderFilter('${fid}')">${getFolderPathName(fid)}</div>`)
       ].join('');
     }
 
@@ -1603,7 +1680,13 @@
     function addFolder() {
       const mask = document.getElementById('add-folder-modal-mask');
       const input = document.getElementById('add-folder-name');
+      const parentSel = document.getElementById('add-folder-parent');
       if (input) input.value = '';
+      renderFolderOptions();
+      if (parentSel) {
+        const currentValid = currentFolderId !== 'all' && db.folders[currentFolderId];
+        parentSel.value = currentValid ? currentFolderId : 'root';
+      }
       if (mask) mask.classList.remove('hidden');
       setTimeout(() => input?.focus(), 30);
     }
@@ -1618,7 +1701,9 @@
       const name = (document.getElementById('add-folder-name')?.value || '').trim();
       if (!name) return alert('请输入位置文件夹名称。');
       const id = 'folder_' + Date.now();
-      db.folders[id] = { name };
+      const parentRaw = document.getElementById('add-folder-parent')?.value || 'root';
+      const parentId = parentRaw === 'root' ? null : parentRaw;
+      db.folders[id] = { name, parentId };
       currentFolderId = id;
       save();
       closeAddFolderModal();
@@ -1661,6 +1746,8 @@
         });
       }
       if (!confirm(`确定删除文件夹【${db.folders[id].name}】吗？`)) return;
+      const fallbackParent = db.folders[id]?.parentId || null;
+      Object.keys(db.folders).forEach(fid => { if (db.folders[fid].parentId === id) db.folders[fid].parentId = fallbackParent; });
       delete db.folders[id];
       if (currentFolderId === id) currentFolderId = 'all';
       save();
@@ -1673,11 +1760,26 @@
     }
 
     function renderFolderOptions() {
-      const options = Object.keys(db.folders).map(id => `<option value="${id}">位置: ${db.folders[id].name}</option>`).join('');
+      const ordered = getOrderedFolderIds();
+      const options = ordered.map(id => {
+        const depth = getFolderDepth(id);
+        const prefix = '　'.repeat(depth);
+        return `<option value="${id}">位置: ${prefix}${db.folders[id].name}</option>`;
+      }).join('');
       const sel = document.getElementById('new-box-folder');
       if (sel) sel.innerHTML = options;
       const modalSel = document.getElementById('add-box-folder');
       if (modalSel) modalSel.innerHTML = options;
+
+      const parentSel = document.getElementById('add-folder-parent');
+      if (parentSel) {
+        const parentOptions = ['<option value="root">(根目录)</option>', ...ordered.map(id => {
+          const depth = getFolderDepth(id);
+          const prefix = '　'.repeat(depth);
+          return `<option value="${id}">${prefix}${db.folders[id].name}</option>`;
+        })];
+        parentSel.innerHTML = parentOptions.join('');
+      }
     }
 
     function renderFolderList() {
@@ -1699,12 +1801,15 @@
       allItem.onclick = () => setFolderFilter('all');
       list.appendChild(allItem);
 
-      Object.keys(db.folders).filter(id => {
+      getOrderedFolderIds().filter(id => {
         if (!folderSearchKeyword) return true;
-        return (db.folders[id].name || '').toLowerCase().includes(folderSearchKeyword);
+        const key = folderSearchKeyword.toLowerCase();
+        return (db.folders[id].name || '').toLowerCase().includes(key) || getFolderPathName(id).toLowerCase().includes(key);
       }).forEach(id => {
         const folder = db.folders[id];
-        const count = Object.values(db.boxes).filter(b => b.folderId === id).length;
+        const depth = getFolderDepth(id);
+        const descendants = new Set(getDescendantFolderIds(id));
+        const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
         const div = document.createElement('div');
         div.className = `item folder-item tree-item ${currentFolderId === id ? 'active' : ''}`;
         div.style.borderLeftColor = getFolderColor(id);
@@ -1712,7 +1817,7 @@
           ? `<span class="folder-sort-ops"><button class="mini-btn" onclick="moveFolderOrder('${id}',-1,event)">↑</button><button class="mini-btn" onclick="moveFolderOrder('${id}',1,event)">↓</button></span>`
           : '';
         div.innerHTML = `
-          <div class="item-info"><span class="tree-arrow">▸</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}</div>
+          <div class="item-info" style="padding-left:${depth * 14}px"><span class="tree-arrow">▸</span>${folder.name}<span class="item-tag">${count}</span>${sortOps}</div>
           <div>
             <button class="mini-btn" title="重命名" onclick="renameFolder('${id}',event)">✎</button>
             <button class="mini-btn danger" title="删除" onclick="deleteFolder('${id}',event)">🗑</button>
@@ -1729,13 +1834,14 @@
     function renderBoxFolderStrip() {
       const strip = document.getElementById('box-folder-strip');
       if (!strip) return;
-      const folderIds = Object.keys(db.folders);
+      const folderIds = getOrderedFolderIds();
       const total = Object.keys(db.boxes).length;
       strip.innerHTML = [
         `<div class="folder-chip all ${currentFolderId === 'all' ? 'active' : ''}" onclick="setFolderFilter('all')">全部 · ${total}</div>`,
         ...folderIds.map(fid => {
-          const count = Object.values(db.boxes).filter(b => b.folderId === fid).length;
-          return `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${db.folders[fid].name} · ${count}</div>`;
+          const descendants = new Set(getDescendantFolderIds(fid));
+          const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
+          return `<div class="folder-chip ${currentFolderId === fid ? 'active' : ''}" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${getFolderPathName(fid)} · ${count}</div>`;
         })
       ].join('');
     }
@@ -1857,7 +1963,8 @@ ${options}`);
       };
 
       if (currentFolderId !== 'all') {
-        ids.filter(id => db.boxes[id].folderId === currentFolderId).forEach(renderBoxItem);
+        const allowed = new Set(getDescendantFolderIds(currentFolderId));
+        ids.filter(id => allowed.has(db.boxes[id].folderId)).forEach(renderBoxItem);
         return;
       }
 
@@ -1868,13 +1975,13 @@ ${options}`);
         grouped[fid].push(id);
       });
 
-      Object.keys(db.folders).forEach(fid => {
+      getOrderedFolderIds().forEach(fid => {
         const folderIds = grouped[fid] || [];
         if (!folderIds.length) return;
         const title = document.createElement('div');
         title.className = 'box-group-title';
         title.style.background = getFolderColor(fid);
-        title.innerHTML = `<span>${db.folders[fid].name}</span><span>${folderIds.length}</span>`;
+        title.innerHTML = `<span>${getFolderPathName(fid)}</span><span>${folderIds.length}</span>`;
         list.appendChild(title);
         folderIds.forEach(renderBoxItem);
       });
@@ -2187,7 +2294,7 @@ ${options}`);
 
     function updateOverview() {
       const tree = document.getElementById('overview-tree');
-      const folderIds = currentOverviewFolderId === 'all' ? Object.keys(db.folders) : [currentOverviewFolderId].filter(fid => db.folders[fid]);
+      const folderIds = currentOverviewFolderId === 'all' ? getOrderedFolderIds() : getDescendantFolderIds(currentOverviewFolderId).filter(fid => db.folders[fid]);
       const chunks = [];
 
       folderIds.forEach(fid => {
