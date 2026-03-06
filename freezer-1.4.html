@@ -1,0 +1,3853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>freezer-1.3</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #1890ff;
+      --danger: #ff4d4f;
+      --warning: #faad14;
+      --bg: #f5f7fa;
+      --dark: #001529;
+      --card: #fff;
+      --muted: #8c8c8c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: calc(100vh / 0.9);
+      height: calc(100vh / 0.9);
+      display: flex;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      zoom: 90%;
+    }
+    .sidebar {
+      width: 300px;
+      background: var(--dark);
+      color: #fff;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+    .section-title { font-size: 12px; opacity: .8; margin: 6px 0 2px; }
+    .list { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 8px; overflow: auto; }
+    .folder-list { max-height: 132px; }
+    .box-list {
+      flex: 1;
+      min-height: 180px;
+      padding: 10px;
+      background: linear-gradient(180deg, rgba(2,22,44,.65), rgba(2,22,44,.2));
+      border: 1px solid rgba(73,132,179,.26);
+    }
+    .folder-list .item {
+      padding: 6px 8px;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+    .folder-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 2px 10px;
+      scrollbar-width: thin;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .folder-chip {
+      flex: 0 0 auto;
+      border: 1px solid rgba(120,195,255,.3);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #d0e9ff;
+      cursor: pointer;
+      white-space: nowrap;
+      background: rgba(17,42,69,.9);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+      transition: all .2s ease;
+    }
+    .folder-chip:hover {
+      transform: translateY(-1px);
+      border-color: rgba(140,215,255,.8);
+      box-shadow: 0 2px 8px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.12);
+    }
+    .box-group-title {
+      font-size: 12px;
+      margin: 8px 0 6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+    .item {
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #112a45;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      border: 1px solid transparent;
+      font-size: 13px;
+      gap: 8px;
+    }
+    .item:hover { border-color: #6f6f6f; }
+    .item.active { background: var(--primary); border-color: #69c0ff; }
+    .item.folder-item, .item.box-item { border-left: 4px solid transparent; }
+    .item.box-item {
+      border-left-width: 6px;
+      background: linear-gradient(145deg, rgba(22,59,94,.92), rgba(10,35,61,.92));
+      border-color: rgba(114,190,255,.22);
+      box-shadow: 0 2px 10px rgba(0,0,0,.18);
+      padding: 10px 10px;
+    }
+    .item.box-item:hover {
+      border-color: rgba(151,216,255,.6);
+      transform: translateY(-1px);
+    }
+    .item.box-item .item-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      min-width: 0;
+      white-space: normal;
+    }
+    .box-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f0f8ff;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .box-meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 10px;
+    }
+    .box-meta-badge {
+      border: 1px solid rgba(174,228,255,.35);
+      border-radius: 999px;
+      padding: 1px 6px;
+      color: #d7f1ff;
+      background: rgba(255,255,255,.08);
+    }
+    .item.box-item .mini-btn {
+      border: 1px solid rgba(174,228,255,.25);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: rgba(255,255,255,.06);
+      color: #cfeeff;
+    }
+    .item-info { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .item-tag {
+      font-size: 10px;
+      opacity: .9;
+      margin-left: 5px;
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.24);
+      background: rgba(255,255,255,.12);
+    }
+    .mini-btn {
+      border: none;
+      background: transparent;
+      color: #bfbfbf;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 3px 5px;
+      border-radius: 4px;
+    }
+    .mini-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+    .mini-btn.danger:hover { background: var(--danger); }
+    .row { display: flex; gap: 8px; }
+    .btn {
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn:hover { border-color: var(--primary); color: var(--primary); }
+    .btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn.primary:hover { filter: brightness(1.06); }
+    .select-dark {
+      width: 100%;
+      border: 1px solid #1f3f63;
+      border-radius: 6px;
+      padding: 8px;
+      background: #112a45;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+
+    .sidebar {
+      width: 340px;
+      background: #0b1220;
+      color: #fff;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+      border-right: 1px solid rgba(255,255,255,.06);
+    }
+    
+    .sidebar {
+      position: relative;
+      transition: width .2s ease, padding .2s ease;
+    }
+    .sidebar-toggle {
+      position: absolute;
+      right: -12px;
+      top: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid rgba(162,201,255,.6);
+      background: #10233d;
+      color: #d5ecff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    #collapsed-nav {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      border: 1px solid rgba(169,199,255,.3);
+      border-radius: 10px;
+      padding: 8px 4px;
+      background: rgba(7,20,38,.9);
+      overflow: auto;
+      gap: 6px;
+      flex-direction: column;
+    }
+    .mini-tree-title {
+      font-size: 10px;
+      color: #9dc8ef;
+      text-align: left;
+      margin-bottom: 2px;
+      padding-left: 2px;
+    }
+    .mini-tree-node {
+      border: 1px solid rgba(112,164,220,.22);
+      border-radius: 6px;
+      padding: 3px 4px;
+      text-align: left;
+      font-size: 10px;
+      color: #d4ecff;
+      background: rgba(18,39,66,.72);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      line-height: 1.2;
+    }
+    .mini-tree-prefix {
+      color: rgba(155,206,255,.7);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: -0.5px;
+      flex: 0 0 auto;
+    }
+    .mini-tree-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .mini-tree-node.folder { font-weight: 600; }
+    .mini-tree-node.box { font-size: 9px; color: #c7e5ff; }
+    .mini-tree-arrow { margin-right: 2px; color:#8fc7ff; flex: 0 0 auto; }
+    .mini-tree-node.active {
+      border-color: #69c0ff;
+      background: rgba(24,144,255,.45);
+      color: #fff;
+      font-weight: 700;
+    }
+    body.sidebar-collapsed .sidebar {
+      width: 76px;
+      padding: 12px 8px;
+    }
+    body.sidebar-collapsed .sidebar-panel {
+      display: none;
+    }
+    body.sidebar-collapsed #collapsed-nav {
+      display: flex;
+    }
+.sidebar-panel {
+      border: 1px solid rgba(169,199,255,.35);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(7, 20, 38, .9);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .sidebar-head { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .sidebar-title { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .sidebar-sub { font-size: 13px; font-weight: 700; color: #d8eeff; }
+    .sidebar-search {
+      width: 100%;
+      border: 1px solid rgba(162,201,255,.35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #0f2036;
+      color: #e8f4ff;
+    }
+    .sidebar-search::placeholder { color: #8ab7e1; }
+    .side-actions, .side-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .side-btn {
+      border: 1px solid rgba(162,201,255,.35);
+      border-radius: 8px;
+      background: #132742;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .side-btn:hover { border-color: #69c0ff; }
+    .side-filter {
+      border-radius: 999px;
+      border: 1px solid rgba(162,201,255,.35);
+      background: #132742;
+      color: #cde9ff;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .side-filter.active {
+      color: #fff;
+      border-color: #69c0ff;
+      background: rgba(24,144,255,.45);
+    }
+    .folder-list { max-height: none; flex: 1; min-height: 0; }
+    .box-list { min-height: 180px; max-height: 280px; }
+    .item.tree-item { background: rgba(17,42,69,.85); }
+    .item.tree-item.active {
+      background: linear-gradient(135deg, rgba(24,144,255,.7), rgba(19,194,194,.35));
+      border-color: #9dd9ff;
+      border-left-color: #b8e6ff !important;
+      box-shadow: 0 0 0 1px rgba(170,225,255,.35) inset, 0 4px 12px rgba(0,0,0,.25);
+    }
+    .item.tree-item.active .item-tag {
+      border-color: rgba(255,255,255,.5);
+      background: rgba(255,255,255,.2);
+      color: #fff;
+    }
+    .tree-arrow { font-size: 11px; color: #9fd1ff; margin-right: 6px; }
+    .tree-arrow-btn { cursor: pointer; user-select: none; display: inline-flex; width: 12px; justify-content: center; }
+    .nav-block-title {
+      margin: 8px 0 4px;
+      color: #d8e9ff;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .nav-folder-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      font-weight: 700;
+    }
+    .nav-folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: relative; }
+    .nav-folder-card .item-info { overflow: visible; }
+    .nav-folder-line { position: relative; }
+    .nav-folder-line[data-sub-tip]:hover::after {
+      content: attr(data-sub-tip);
+      position: absolute;
+      left: 18px;
+      top: calc(100% + 6px);
+      z-index: 40;
+      white-space: nowrap;
+      background: rgba(10,22,38,.96);
+      border: 1px solid rgba(155,216,255,.65);
+      color: #e9f6ff;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,.28);
+      pointer-events: none;
+    }
+    .nav-folder-pill {
+      margin-left: auto;
+      color: #fff7cc;
+      font-weight: 700;
+    }
+    .nav-box-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 3px;
+      padding: 6px 8px;
+      margin: 4px 0 8px 18px;
+      border-left: 1px dashed rgba(157,211,255,.45);
+      border-right: 1px solid rgba(164,225,255,.6);
+      border-top: 1px solid rgba(164,225,255,.6);
+      border-bottom: 1px solid rgba(164,225,255,.6);
+      background: rgba(8,25,44,.88);
+    }
+    .nav-box-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .nav-box-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight:700; }
+    .nav-box-meta {
+      font-size: 12px;
+      color: #d3ebff;
+      padding-left: 18px;
+      line-height: 1.25;
+      font-weight: 600;
+    }
+    .nav-folder-card {
+      margin: 4px 0;
+      border-left: 2px solid #7be4ff;
+      border-right: 1px solid #ffe48f;
+      border-top: 1px solid #d5f4ff;
+      border-bottom: 1px solid #d5f4ff;
+      background: rgba(11,32,54,.9);
+      padding: 6px 8px;
+    }
+    .nav-folder-submeta {
+      margin-top: 3px;
+      color: #e8f5ff;
+      font-size: 12px;
+      padding-left: 18px;
+      font-weight: 600;
+    }
+    .nav-folder-stats {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff7cc;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .nav-stat-item { min-width: 52px; text-align: right; }
+    .nav-stat-item.subfolders { margin-right: -4px; }
+    .nav-folder-submeta .usage { margin-left: 8px; }
+    .nav-folder-submeta .usage.empty { color: #ffffff; }
+    .nav-folder-submeta .usage.low { color: #95f985; }
+    .nav-folder-submeta .usage.mid { color: #ffcc66; }
+    .nav-folder-submeta .usage.full { color: #ff6b6b; }
+    .nav-box-meta .usage { margin-left: 8px; }
+    .nav-box-meta .usage.empty { color: #ffffff; }
+    .nav-box-meta .usage.low { color: #95f985; }
+    .nav-box-meta .usage.mid { color: #ffcc66; }
+    .nav-box-meta .usage.full { color: #ff6b6b; }
+    .nav-more-btn {
+      margin-left: auto;
+      border: 1px solid rgba(184,223,255,.45);
+      border-radius: 6px;
+      background: rgba(255,255,255,.05);
+      color: #d6ecff;
+      padding: 1px 8px;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .nav-action-list { display: flex; flex-direction: column; gap: 8px; }
+    .nav-action-option {
+      width: 100%;
+      text-align: left;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .nav-action-option:hover { border-color: var(--primary); color: var(--primary); }
+    .folder-sort-tip {
+      font-size: 11px;
+      color: rgba(216,238,255,.78);
+      margin-top: -2px;
+      padding-left: 4px;
+      border-left: 2px solid rgba(121,190,255,.45);
+    }
+    .folder-sort-ops {
+      display: inline-flex;
+      gap: 4px;
+      margin-left: 6px;
+    }
+
+    .main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow: hidden; }
+    .header { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+    .header .row { flex-wrap: wrap; }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-top-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .search-wrap.compact {
+      flex: 0 1 420px;
+      max-width: 420px;
+      min-width: 300px;
+    }
+    .toolbar-card {
+      border: 1px solid #e6e6e6;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toolbar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .toolbar-title {
+      font-size: 12px;
+      color: #777;
+      font-weight: 600;
+    }
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+    .backup-actions {
+      align-items: flex-start;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      gap: 12px;
+    }
+    .backup-btns {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .backup-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 8px;
+      min-width: 320px;
+    }
+    .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border: 1px solid transparent;
+    }
+    .meta-pill.dir {
+      color: #0958d9;
+      background: #e6f4ff;
+      border-color: #91caff;
+    }
+    .meta-pill.state {
+      color: #135200;
+      background: #f6ffed;
+      border-color: #b7eb8f;
+    }
+    .meta-pill.state.local {
+      color: #ad6800;
+      background: #fff7e6;
+      border-color: #ffd591;
+    }
+    .meta-pill.state.off {
+      color: #a8071a;
+      background: #fff1f0;
+      border-color: #ffa39e;
+    }
+    .btn.compact {
+      padding: 7px 10px;
+      font-size: 12px;
+      border-radius: 7px;
+    }
+    .toolbar-collapsed-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    @media (max-width: 1080px) {
+      .backup-actions {
+        flex-wrap: wrap;
+      }
+      .backup-meta {
+        min-width: 100%;
+      }
+    }
+    .search-wrap { flex: 1; position: relative; }
+    .search { width: 100%; padding: 12px; border: 1px solid #d9d9d9; border-radius: 8px; }
+    .search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(24,144,255,.2); }
+    .search-dd {
+      position: absolute;
+      left: 0; right: 0; top: calc(100% + 6px);
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.15);
+      max-height: 360px;
+      overflow: auto;
+      display: none;
+      z-index: 10;
+    }
+    .search-item {
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+    }
+    .search-item:hover { background: #f0f7ff; }
+    .loc-tag { font-size: 11px; background: #f5f5f5; border-radius: 4px; color: #666; padding: 2px 6px; }
+
+
+    .tool-sketch {
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 10px;
+      background: #0e1117;
+      color: #fff;
+      padding: 10px 12px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    }
+    .tool-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.16);
+    }
+    .tool-row:last-child { border-bottom: none; }
+    .tool-label { font-weight: 700; color: #f4f7ff; }
+    .tool-search {
+      width: min(640px, 100%);
+      border: 1px solid rgba(164,205,255,.5);
+      border-radius: 8px;
+      background: #111b2b;
+      color: #fff;
+      padding: 9px 11px;
+      font-size: 14px;
+    }
+    .tool-search::placeholder { color: #9dc3ef; }
+    .tool-link-btn {
+      border: 1px solid rgba(164,205,255,.45);
+      border-radius: 7px;
+      background: transparent;
+      color: #fff;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .tool-link-btn:hover { border-color: #69c0ff; color: #69c0ff; }
+    .tool-select {
+      border: 1px solid rgba(164,205,255,.45);
+      border-radius: 7px;
+      background: #121d2f;
+      color: #fff;
+      padding: 5px 8px;
+      font-size: 13px;
+    }
+    .tool-status { color: #ffd666; font-weight: 700; }
+    .tool-status.ok { color: #95de64; }
+    .tool-mini-log { color: #d6e8ff; font-size: 13px; }
+        .top-utility-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .utility-search {
+      flex: 1 1 520px;
+      min-width: 280px;
+      position: relative;
+    }
+    .tool-status-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #ffd591;
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: #fff7e6;
+      color: #ad6800;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .tool-status-badge.ok {
+      border-color: #b7eb8f;
+      background: #f6ffed;
+      color: #135200;
+    }
+    .tool-status-badge.off {
+      border-color: #ffa39e;
+      background: #fff1f0;
+      color: #a8071a;
+    }
+    .toolbar-toggle-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+    .toolbar-toggle-btn {
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 8px;
+      background: #0e1117;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .toolbar-toggle-btn:hover {
+      border-color: #69c0ff;
+      color: #69c0ff;
+    }
+    .lang-switch {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      border: 1px solid #1890ff;
+      border-radius: 999px;
+      padding: 2px;
+      background: rgba(24,144,255,.06);
+    }
+    .lang-switch-btn {
+      min-width: 72px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #8fc5ff;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: .2s;
+    }
+    .lang-switch-btn.active {
+      background: #0f253f;
+      color: #d8efff;
+      box-shadow: inset 0 0 0 1px #1890ff;
+    }
+
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal {
+      width: min(520px, calc(100vw - 24px));
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 18px 48px rgba(0,0,0,.25);
+      overflow: hidden;
+    }
+    .modal-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .modal-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-foot {
+      padding: 12px 14px;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-field label {
+      display: block;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .modal-field input, .modal-field select {
+      width: 100%;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    .inventory-locations-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: min(56vh, 560px);
+      overflow: auto;
+    }
+    .inventory-location-item {
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      background: #fff;
+      transition: .15s;
+    }
+    .inventory-location-item:hover {
+      border-color: #91d5ff;
+      background: #f0f9ff;
+    }
+    .inventory-location-main {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .inventory-location-sub {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+        .content { flex: 1; display: flex; gap: 16px; overflow: hidden; }
+    .view, .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .view { flex: 1; padding: 16px; display: flex; justify-content: center; align-items: flex-start; overflow: auto; position: relative; }
+    .grid { display: grid; gap: 6px; width: fit-content; margin: 0 auto; transform-origin: top center; transition: transform .15s ease; --grid-font-scale: 1; }
+    .grid-zoom-controls { position: absolute; top: 16px; right: 16px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.96); border: 1px solid #e8e8e8; border-radius: 10px; padding: 6px 8px; z-index: 12; box-shadow: 0 2px 8px rgba(0,0,0,.08); cursor: grab; }
+    .box-location-badge {
+      width: 100%;
+      border: 1px solid #d9e8ff;
+      background: rgba(255,255,255,.96);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: #163a5f;
+      font-size: 12px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin: 0 0 8px;
+      box-sizing: border-box;
+    }
+    .grid-zoom-controls.dragging { cursor: grabbing; }
+    .zoom-drag-handle { color: #999; font-size: 14px; padding: 0 2px; user-select: none; }
+    .zoom-label { font-size: 12px; color: #666; min-width: 46px; text-align: center; }
+    .zoom-btn { border: 1px solid #d9d9d9; border-radius: 6px; background: #fff; width: 28px; height: 28px; line-height: 1; cursor: pointer; }
+    .zoom-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .zoom-slider { width: 120px; accent-color: var(--primary); cursor: pointer; }
+    .empty-tip { color: #999; margin-top: 40px; }
+    .cell.axis-cell {
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      pointer-events: none;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cell.axis-cell .cell-label {
+      width: auto;
+      height: auto;
+      display: block;
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+      word-break: normal;
+      text-overflow: clip;
+      text-align: center;
+      padding: 0;
+    }
+
+    .cell {
+      width: 48px; height: 48px;
+      border: 1px solid #e8e8e8;
+      border-radius: 6px;
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      cursor: pointer;
+      transition: .2s;
+    }
+    .cell.occupied { border-color: transparent; font-weight: 600; color: #333; }
+    .cell.occupied:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.12); cursor: grab; }
+    .cell.occupied:active { cursor: grabbing; }
+    .cell.selected { border: 2px solid var(--primary) !important; box-shadow: 0 0 0 3px rgba(24,144,255,.22); transform: scale(1.05); }
+    .cell.drag-over { border: 2px dashed var(--primary); background: #e6f7ff !important; }
+    .cell.highlight { animation: pulse 1s infinite alternate; border: 2px solid var(--warning) !important; }
+    .cell-label {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      padding: 2px 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: break-word;
+      font-size: calc(11px * var(--grid-font-scale));
+      line-height: 1.05;
+      text-align: center;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+    .cell.empty .cell-label {
+      height: auto;
+      white-space: nowrap;
+      display: block;
+      font-size: calc(9px * var(--grid-font-scale));
+      color: #999;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 0 3px;
+    }
+    @keyframes pulse { from { transform: scale(1);} to { transform: scale(1.12);} }
+
+    .panel { width: 340px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+    .card { padding: 16px; }
+    .card h3 { margin: 0 0 10px; }
+    .input { width: 100%; padding: 9px; margin: 4px 0 12px; border: 1px solid #d9d9d9; border-radius: 6px; }
+    .date-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0 12px;
+    }
+    .date-input-wrap .input { margin: 0; }
+    .date-assist-native {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .date-assist-picker {
+      border: 1px solid #d8dde6;
+      background: #fff;
+      border-radius: 8px;
+      height: 36px;
+      min-width: 36px;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stats { border: 1px solid #91d5ff; background: #e6f7ff; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+    .inventory-total-line {
+      margin-top: 6px;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      flex-wrap: wrap;
+      line-height: 1.2;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .inventory-total-line:hover { text-decoration: underline dotted; }
+    #total-inv {
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #total-inv-unit { font-size: 14px; }
+    .stats.low { border-color: #ffa39e; background: #fff1f0; color: var(--danger); }
+    .muted { color: var(--muted); font-size: 12px; }
+    .warn-list { max-height: 180px; overflow: auto; font-size: 13px; }
+    .plain-action-wrap {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #d9e2ef;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .plain-action-title {
+      font-size: 12px;
+      color: #6f7f92;
+      margin: 6px 0 4px;
+      font-weight: 700;
+    }
+    .plain-action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .plain-action-row.single { grid-template-columns: 1fr; }
+    .plain-btn {
+      border: 1px solid #d8dde6;
+      background: #fff;
+      border-radius: 8px;
+      padding: 7px 10px;
+      text-align: left;
+      font-size: 13px;
+      cursor: pointer;
+      color: #1f2d3d;
+      width: 100%;
+    }
+    .plain-btn strong { font-weight: 800; }
+    .plain-btn.primary {
+      border-color: #91caff;
+      background: #e6f4ff;
+      color: #0958d9;
+    }
+    .switch-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-weight: 700;
+    }
+    .switch-indicator {
+      min-width: 44px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      color: #777;
+      font-size: 12px;
+    }
+    .switch-btn.on {
+      border-color: #95de64;
+      background: #f6ffed;
+      color: #237804;
+    }
+    .switch-btn.on .switch-indicator {
+      border-color: #95de64;
+      background: #52c41a;
+      color: #fff;
+    }
+    .switch-btn.off {
+      border-color: #ffd591;
+      background: #fff7e6;
+      color: #ad6800;
+    }
+    .switch-btn.off .switch-indicator {
+      border-color: #ffd591;
+      background: #faad14;
+      color: #fff;
+    }
+
+    .overview-wrap { display: none; height: 100%; }
+    .overview-filter {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 6px 0 12px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .overview-chip {
+      flex: 0 0 auto;
+      border: 1px solid #d9d9d9;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      background: #fff;
+      white-space: nowrap;
+    }
+    .overview-scroll {
+      max-height: calc(100vh - 230px);
+      overflow: auto;
+      border: 1px solid #f0f0f0;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fafafa;
+    }
+    .overview-tree { display: flex; flex-direction: column; gap: 10px; }
+    .ov-folder, .ov-box { border: 1px solid #ececec; border-radius: 8px; background: #fff; }
+    .ov-folder-head, .ov-box-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ov-folder-head { font-weight: 700; }
+    .ov-box-head { font-size: 13px; border-top: 1px dashed #f0f0f0; }
+    .ov-arrow { width: 16px; text-align: center; color: #666; }
+    .ov-meta { font-size: 12px; color: #888; }
+    .ov-folder-body, .ov-box-body { padding: 0 10px 10px; }
+    .ov-items { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .ov-items th, .ov-items td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+    .ov-empty { color: #999; padding: 8px 2px; font-size: 12px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+    <aside class="sidebar">
+    <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()" title="收起/展开导航栏">◀</button>
+    <div id="collapsed-nav"></div>
+        <section class="sidebar-panel" style="flex:1;">
+      <input id="sidebar-search" class="sidebar-search" type="text" placeholder="🔎 搜索文件夹 / 容器..." data-i18n-placeholder="sidebar.search" oninput="handleUnifiedSidebarSearch()" />
+      <div id="folder-sort-tip" class="folder-sort-tip">长按文件夹项可进入排序模式</div>
+      <div id="folder-list" class="list folder-list"></div>
+
+
+      <div class="side-actions">
+        <button id="btn-create" class="side-btn" onclick="openCreateModal()">+ 新建</button>
+      </div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <div class="top-utility-bar">
+        <div class="search-wrap utility-search">
+          <input id="global-search" class="tool-search" type="text" placeholder="🔎 全局搜索：细胞名/代数/条码" data-i18n-placeholder="global.search" oninput="handleGlobalSearch()" />
+          <div id="search-dd" class="search-dd"></div>
+        </div>
+        <span id="backup-status" class="tool-status-badge" onclick="handleBackupStatusClick()" title="点击进行开启/授权/关闭" data-i18n-title="backup.statusTitle">⚠️ 未授权目录</span>
+        <button id="btn-view-grid" class="toolbar-toggle-btn" onclick="switchView('grid')">容器页面</button>
+        <button id="btn-view-overview" class="toolbar-toggle-btn" onclick="switchView('overview')">总览页面</button>
+        <div class="toolbar-toggle-bar" style="margin-bottom:0;">
+          <button id="toolbar-toggle-btn" class="toolbar-toggle-btn" onclick="toggleTopToolbar()">展开工具栏</button>
+        </div>
+        <div id="lang-switch" class="lang-switch" title="语言 / Language">
+          <button id="lang-btn-zh" class="lang-switch-btn" onclick="setLanguage('zh')">中文</button>
+          <button id="lang-btn-en" class="lang-switch-btn" onclick="setLanguage('en')">EN</button>
+        </div>
+      </div>
+      <div id="box-location-badge" class="box-location-badge hidden"></div>
+
+      <div id="top-toolbar" class="tool-sketch hidden">
+        <div class="tool-row" id="main-actions-card">
+          <span id="label-data-ops" class="tool-label">数据操作:</span>
+          <button id="btn-import" class="tool-link-btn" onclick="triggerImport()">导入</button>
+          <button id="btn-export-excel" class="tool-link-btn" onclick="exportExcel()">导出Excel</button>
+          <button id="btn-export-json" class="tool-link-btn" onclick="exportJSON()">导出备份JSON</button>
+          <input id="import-file" type="file" style="display:none" onchange="importJSON(event)" />
+        </div>
+
+        <div class="tool-row" id="backup-actions-card">
+          <span id="label-auto-backup" class="tool-label">自动备份:</span>
+          <span id="backup-dir-label" class="tool-label hidden">目录:</span>
+          <span id="backup-dir-top" class="hidden">auto-backups</span>
+          <span id="label-format" class="tool-label">格式:</span><span>JSON</span>
+          <span id="label-frequency" class="tool-label">频率:</span>
+          <select id="backup-frequency" class="tool-select">
+            <option value="30">30min</option>
+            <option value="15">15min</option>
+            <option value="60">60min</option>
+          </select>
+        </div>
+
+        <div class="tool-row">
+          <span id="label-quick-actions" class="tool-label">快捷操作:</span>
+          <button id="btn-change-folder" class="tool-link-btn" onclick="changeBackupFolder()">更改目录</button>
+          <button id="btn-run-backup" class="tool-link-btn" onclick="runImmediateBackup()">立即备份</button>
+        </div>
+
+        <details class="tool-row" style="display:block;">
+          <summary id="label-advanced-log" class="tool-label" style="cursor:pointer;">高级/日志（折叠，默认收起）</summary>
+          <div class="tool-mini-log" style="margin-top:8px;">- 最近备份：<span id="last-backup-log">--</span></div>
+          <div class="tool-mini-log">- ...</div>
+        </details>
+      </div>
+    </div>
+
+    <section id="grid-view" class="content">
+      <div class="view">
+        <div id="grid-zoom-controls" class="grid-zoom-controls" title="拖动可移动缩放工具条">
+          <span class="zoom-drag-handle">⠿</span>
+          <button class="zoom-btn" onclick="zoomGridOut()" title="缩小">－</button>
+          <span id="grid-zoom-label" class="zoom-label">100%</span>
+          <input id="grid-zoom-slider" class="zoom-slider" type="range" min="60" max="180" step="5" value="100" oninput="handleGridZoomSlider(this.value)" title="快速调整缩放" />
+          <button class="zoom-btn" onclick="zoomGridIn()" title="放大">＋</button>
+          <button class="zoom-btn" onclick="resetGridZoom()" title="重置">⟲</button>
+        </div>
+        <div id="empty-tip" class="empty-tip">请在左侧选择或新增一个容器</div>
+        <div id="grid" class="grid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="card">
+          <div id="stats" class="stats">
+            <span id="sel-count" style="display:none">0</span>
+            <div id="inventory-total-link" class="inventory-total-line" title="点击查看该细胞所有库存位置" onclick="openInventoryLocationsModal()"><span id="total-inv-label">全库总余量</span>: <span id="total-inv">0</span> <span id="total-inv-unit">管</span></div>
+          </div>
+          <label id="label-cell-name">细胞名称 (Name)</label>
+          <input id="cell-name" class="input" type="text" placeholder="例如: HEK293T" oninput="updateLiveStats()" />
+          <label id="label-cell-p">代数 (P)</label>
+          <input id="cell-p" class="input" type="text" />
+          <label id="label-cell-date">冻存日期</label>
+          <div class="date-input-wrap">
+            <input id="cell-date" class="input" type="text" inputmode="numeric" placeholder="yyyy/mm/dd" />
+            <input id="cell-date-picker" class="date-assist-native" type="date" onchange="onDateAssistPicked(this.value)" />
+            <button type="button" class="date-assist-picker" onclick="openDateAssistPicker()" title="选择日期">📅</button>
+          </div>
+          <div class="plain-action-wrap">
+            <div class="plain-action-row single">
+              <button class="plain-btn switch-btn off" onclick="toggleMultiSelectMode()" id="multi-select-btn">
+                <span id="multi-select-label">多选</span><span id="multi-select-indicator" class="switch-indicator">关</span>
+              </button>
+            </div>
+            <div id="label-edit" class="plain-action-title">编辑</div>
+            <div class="plain-action-row">
+              <button id="btn-copy" class="plain-btn" onclick="copySelectedCells()">📋 <strong>复制</strong></button>
+              <button id="btn-paste" class="plain-btn" onclick="pasteToSelectedCells()">📥 <strong>粘贴</strong></button>
+            </div>
+            <div id="label-submit" class="plain-action-title">提交</div>
+            <button id="btn-save" class="plain-btn primary" style="margin-bottom:8px" onclick="saveBatch()">✅ <strong>保存</strong></button>
+            <button id="btn-clear" class="plain-btn" onclick="clearBatch()">⛔ <strong>出库</strong></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 id="warn-title" style="color:var(--danger)">⚠️ 低库存预警</h3>
+          <div id="warn-list" class="warn-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="overview-view" class="overview-wrap card">
+      <h3 id="overview-title">📊 文件夹/容器总览</h3>
+      <div id="overview-folder-strip" class="overview-filter"></div>
+      <div id="overview-scroll" class="overview-scroll" onwheel="handleOverviewWheel(event)">
+        <div id="overview-tree" class="overview-tree"></div>
+      </div>
+    </section>
+
+
+    <div id="create-modal-mask" class="modal-mask hidden" onclick="closeCreateModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="create-modal-title" class="modal-head">新建</div>
+        <div class="modal-body">
+          <div class="row">
+            <button id="btn-create-folder" class="btn" style="flex:1" onclick="closeCreateModal(); addFolder();">新建文件夹</button>
+            <button id="btn-create-box" class="btn primary" style="flex:1" onclick="closeCreateModal(); addBox();">新建容器</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="add-folder-modal-mask" class="modal-mask hidden" onclick="closeAddFolderModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="add-folder-modal-title" class="modal-head">新增文件夹</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label id="label-add-folder-name">文件夹名称</label>
+            <input id="add-folder-name" type="text" placeholder="例如：液氮 / -80 / 默认位置" />
+          </div>
+          <div class="modal-field">
+            <label id="label-add-folder-parent">上级文件夹</label>
+            <select id="add-folder-parent"></select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-add-folder-cancel" class="btn" onclick="closeAddFolderModal()">取消</button>
+          <button id="btn-add-folder-submit" class="btn primary" onclick="submitAddFolderModal()">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="rename-folder-modal-mask" class="modal-mask hidden" onclick="closeRenameFolderModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="rename-folder-modal-title" class="modal-head">重命名文件夹</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label id="label-rename-folder-name">文件夹名称</label>
+            <input id="rename-folder-name" type="text" placeholder="请输入新的文件夹名称" />
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-rename-folder-cancel" class="btn" onclick="closeRenameFolderModal()">取消</button>
+          <button id="btn-rename-folder-submit" class="btn primary" onclick="submitRenameFolderModal()">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="delete-folder-modal-mask" class="modal-mask hidden" onclick="closeDeleteFolderModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="delete-folder-modal-title" class="modal-head">删除文件夹</div>
+        <div class="modal-body">
+          <div id="delete-folder-tip" class="modal-field">确定删除该文件夹吗？</div>
+          <div id="delete-folder-target-wrap" class="modal-field hidden">
+            <label id="label-delete-folder-target">容器迁移到</label>
+            <select id="delete-folder-target"></select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-delete-folder-cancel" class="btn" onclick="closeDeleteFolderModal()">取消</button>
+          <button id="btn-delete-folder-submit" class="btn primary" onclick="submitDeleteFolderModal()">删除</button>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="add-box-modal-mask" class="modal-mask hidden" onclick="closeAddBoxModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="add-box-modal-title" class="modal-head">新建容器</div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label id="label-add-box-name">容器名称</label>
+            <input id="add-box-name" type="text" placeholder="例如：96孔板-1" />
+          </div>
+          <div class="modal-field">
+            <label id="label-add-box-folder">位置文件夹</label>
+            <select id="add-box-folder"></select>
+          </div>
+          <div class="modal-field">
+            <label id="label-add-box-spec">容器规格</label>
+            <select id="add-box-spec" onchange="toggleCustomBoxSpecInputs()">
+              <option value="8,12">96孔板 (8x12)</option>
+              <option value="9,9">9x9 (81格)</option>
+              <option value="10,10">10x10 (100格)</option>
+              <option value="12,6">12x6 (72格)</option>
+              <option value="custom">自定义行列</option>
+            </select>
+          </div>
+          <div id="add-box-custom-wrap" class="modal-field hidden">
+            <label id="label-add-box-custom-rows">自定义行数（n行）</label>
+            <input id="add-box-custom-rows" type="number" min="1" step="1" placeholder="例如：8" />
+            <label id="label-add-box-custom-cols" style="margin-top:8px;">自定义列数（n列）</label>
+            <input id="add-box-custom-cols" type="number" min="1" step="1" placeholder="例如：12" />
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-add-box-cancel" class="btn" onclick="closeAddBoxModal()">取消</button>
+          <button id="btn-add-box-submit" class="btn primary" onclick="submitAddBoxModal()">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="nav-action-modal-mask" class="modal-mask hidden" onclick="closeNavActionModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="nav-action-modal-title" class="modal-head">操作</div>
+        <div class="modal-body">
+          <div id="nav-action-list" class="nav-action-list"></div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-nav-action-close" class="btn" onclick="closeNavActionModal()">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="box-action-modal-mask" class="modal-mask hidden" onclick="closeBoxActionModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="box-action-modal-title" class="modal-head">容器操作</div>
+        <div class="modal-body">
+          <div id="box-action-rename-wrap" class="modal-field hidden">
+            <label id="label-box-action-name">容器名称</label>
+            <input id="box-action-name" type="text" placeholder="请输入新的容器名称" />
+          </div>
+          <div id="box-action-move-wrap" class="modal-field hidden">
+            <label id="label-box-action-folder">目标文件夹</label>
+            <select id="box-action-folder"></select>
+          </div>
+          <div id="box-action-delete-wrap" class="modal-field hidden">确定删除该容器及其内所有样本吗？</div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-box-action-cancel" class="btn" onclick="closeBoxActionModal()">取消</button>
+          <button id="box-action-confirm-btn" class="btn primary" onclick="submitBoxActionModal()">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="action-message-modal-mask" class="modal-mask hidden" onclick="closeActionMessageModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="action-message-title" class="modal-head">提示</div>
+        <div class="modal-body"><div id="action-message-content" class="modal-field"></div></div>
+        <div class="modal-foot"><button class="btn primary" onclick="closeActionMessageModal()">知道了</button></div>
+      </div>
+    </div>
+
+    <div id="clear-confirm-modal-mask" class="modal-mask hidden" onclick="closeClearConfirmModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="clear-confirm-title" class="modal-head">确认出库</div>
+        <div class="modal-body"><div id="clear-confirm-tip" class="modal-field">确定清空所选位置吗？</div></div>
+        <div class="modal-foot">
+          <button id="btn-clear-confirm-cancel" class="btn" onclick="closeClearConfirmModal()">取消</button>
+          <button id="btn-clear-confirm-submit" class="btn primary" onclick="submitClearBatchModal()">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="inventory-locations-modal-mask" class="modal-mask hidden" onclick="closeInventoryLocationsModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div id="inventory-locations-modal-title" class="modal-head">库存位置</div>
+        <div class="modal-body">
+          <div id="inventory-locations-list" class="inventory-locations-list"></div>
+        </div>
+        <div class="modal-foot">
+          <button id="btn-inventory-close" class="btn" onclick="closeInventoryLocationsModal()">关闭</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'cell_storage_v1_2_db';
+    const AUTO_BACKUP_KEY = 'cell_storage_v1_2_auto_backup_latest';
+    const AUTO_BACKUP_LIST_KEY = 'cell_storage_v1_2_auto_backup_list';
+    const AUTO_BACKUP_LIMIT = 10;
+    const AUTO_BACKUP_DIR = 'auto-backups';
+    const BACKUP_HANDLE_DB = 'cell_freezer_backup_handles';
+    const BACKUP_HANDLE_STORE = 'handles';
+    const AUTO_BACKUP_ENABLED_KEY = 'cell_freezer_auto_backup_enabled';
+    const FIRST_LOAD_KEY = 'cell_freezer_first_load_done';
+    const AUTO_BACKUP_AUTHORIZED_KEY = 'cell_freezer_auto_backup_authorized';
+    const AUTO_BACKUP_MODE_KEY = 'cell_freezer_auto_backup_mode';
+    const TOP_TOOLBAR_COLLAPSED_KEY = 'cell_freezer_top_toolbar_collapsed';
+    const HEADER_SECTION_COLLAPSE_KEY = 'cell_freezer_header_section_collapse_state';
+    const SIDEBAR_COLLAPSED_KEY = 'cell_freezer_sidebar_collapsed';
+    const LANG_KEY = 'cell_freezer_lang';
+
+    let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { folders: {}, boxes: {} };
+    let currentBoxId = null;
+    let currentFolderId = 'all';
+    let selectedPositions = new Set();
+    let multiSelectMode = false;
+    let searchHighlightPos = null;
+    let draggedItemPos = null;
+    let currentOverviewFolderId = 'all';
+    let folderSearchKeyword = '';
+    let boxSearchKeyword = '';
+    let boxFilterMode = 'all';
+    let folderSortMode = false;
+    let folderLongPressTimer = null;
+    let sidebarCollapsed = false;
+    let collapsedNavExpandedFolders = new Set();
+    let collapsedOverviewFolders = new Set();
+    let collapsedOverviewBoxes = new Set();
+    let boxActionState = { type: null, boxId: null };
+    let navActionState = { type: null, id: null };
+    let folderRenameId = null;
+    let folderDeleteState = { folderId: null, related: 0 };
+    let pendingClearSelection = [];
+    let pendingClearBoxId = null;
+    let currentLang = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'zh';
+    const I18N = {
+      zh: {
+        sidebarSearch: '🔎 搜索文件夹 / 容器...', globalSearch: '🔎 全局搜索：细胞名/代数/条码',
+        create: '+ 新建', viewGrid: '容器页面', viewOverview: '总览页面', toolbarExpand: '展开工具栏', toolbarCollapse: '收起工具栏',
+        dataOps: '数据操作:', import: '导入', exportExcel: '导出Excel', exportJson: '导出备份JSON', autoBackup: '自动备份:', dir: '目录:', format: '格式:', freq: '频率:',
+        backupNow: '立即备份', backupAuth: '授权备份目录', backupOff: '关闭自动备份', advLog: '高级/日志（折叠，默认收起）', quickActions: '快捷操作:', folderSortTip: '长按文件夹项可进入排序模式', changeDir: '更改目录', runBackupNow: '立即备份',
+        cellName: '细胞名称 (Name)', cellP: '代数 (P)', cellDate: '冻存日期', dateFmt: 'yyyy/mm/dd', edit: '编辑', submit: '提交', warnTitle: '⚠️ 低库存预警', totalInventory: '全库总余量', totalInvHint: '点击查看该细胞所有库存位置', boxSizeTag: '{rows}行{cols}列', tubeUnit: '管', multiSelect: '多选', on: '开', off: '关', copy: '复制', paste: '粘贴', save: '保存', clear: '出库',
+        overviewTitle: '📊 文件夹/容器总览', createTitle: '新建', createFolder: '新建文件夹', createBox: '新建容器',
+        statusTitle: '点击进行开启/授权/关闭', tip: '提示', ok: '知道了', close: '关闭',
+        locBadge: '位置: {folder} · 容器: {box} ({rows}x{cols})',
+        msgSelectOne: '请先选中一个单元格后再查看全库位置。', msgNoName: '当前单元格没有细胞名称，无法查询库存位置。',
+        msgNoStock: '✅ 库存充足', msgRemain: '余{count}', inventoryTitle: '{name} · 库存位置（{count}）', inventoryEmpty: '未找到库存位置。', backupUnsupported: '自动备份：浏览器不支持目录授权', backupDisabled: '自动备份：已关闭', backupReady: '自动备份：已授权', backupPending: '自动备份：授权待恢复', backupUnauthorized: '自动备份：未授权目录',
+        copyNeedBox: '请先选择容器。', copyNeedCell: '请先选择单元格。', pasteNeedCell: '请先选择粘贴目标单元格。',
+        saveNeedCell: '请先选择格子。', clearNeedCell: '请先选择需要出库的单元格。', addFolderTitle: '新增文件夹', folderName: '文件夹名称', parentFolder: '上级文件夹', cancel: '取消', createBtn: '创建', renameFolderTitle: '重命名文件夹', saveBtn: '保存', deleteFolderTitle: '删除文件夹', moveToFolder: '容器迁移到', deleteBtn: '删除', addBoxTitle: '新建容器', boxName: '容器名称', boxFolder: '位置文件夹', boxSpec: '容器规格', actionTitle: '操作', folderActions: '文件夹操作', boxActions: '容器操作', renameAction: '重命名', moveAction: '移动', boxActionTitle: '容器操作', targetFolder: '目标文件夹', boxDeleteConfirm: '确定删除该容器及其内所有样本吗？', clearConfirmTitle: '确认出库', clearConfirmTip: '确定清空所选位置吗？', confirm: '确定', deleteFolderConfirm: '确定删除文件夹【{name}】吗？', deleteFolderWithRelated: '该文件夹下有 {count} 个容器，删除前请先选择迁移目标。', doneClear: '已完成出库。', copiedMsg: '已复制 {count} 个单元格信息。', copyFail: '复制失败，请检查浏览器剪贴板权限。', pasteFailFormat: '粘贴失败：剪贴板内容不是可用的复制数据。', pasteFailCount: '粘贴失败：多条复制数据时，目标单元格数量需与复制数量一致，或仅复制1条用于批量覆盖。', pastedMsg: '已粘贴到 {count} 个单元格。', cellNameRequired: '细胞名称必填。', backupApiUnsupported: '当前浏览器不支持目录写入 API，将仅使用本地自动备份。', backupEnabledMsg: '已启用自动备份。后续将自动写入 auto-backups 目录。', backupAuthNotDone: '未完成授权，当前将仅使用本地自动备份。', backupApiUnsupportedShort: '当前浏览器不支持目录写入 API。', backupFolderUpdated: '备份文件夹已更新。', backupFolderNotUpdated: '未完成文件夹更换。', backupDisabledMsg: '自动备份已关闭。', backupTriggered: '已触发立即备份。', renameBoxTitle: '重命名容器', moveBoxTitle: '移动容器', deleteBoxTitle: '删除容器', addFolderNamePlaceholder: '例如：液氮 / -80 / 默认位置', renameFolderNamePlaceholder: '请输入新的文件夹名称', addBoxNamePlaceholder: '例如：96孔板-1', addBoxSpec96: '96孔板 (8x12)', addBoxSpec81: '9x9 (81格)', addBoxSpec100: '10x10 (100格)', addBoxSpec72: '12x6 (72格)', addBoxSpecCustom: '自定义行列', customRows: '自定义行数（n行）', customCols: '自定义列数（n列）', customRowsPlaceholder: '例如：8', customColsPlaceholder: '例如：12', rootFolder: '(根目录)', folderOptionPrefix: '位置', emptyTip: '请在左侧选择或新增一个容器', miniTreeTitle: '位置树', empty: '空', allFolders: '全部文件夹', subfoldersUnit: '子夹', subfoldersHover: '子夹：{count}', hoverJump: '点击快速跳转', inventoryPos: '{row}行{col}列', inventorySpec: '{rows}行{cols}列 · P: {p} · 日期: {date}', cellHover: '位置: {pos}\n名称: {name}\n代数: {p}\n日期: {date}', boxesUnit: '盒子', totalCapacity: '总容量', stored: '已存', emptySlots: '空置', unclassified: '未分类', folderNoBoxes: '该文件夹暂无容器', boxNoSamples: '容器内暂无样本', ovContainer: '容器', ovSample: '样本', authorized: '已授权'
+      },
+      en: {
+        sidebarSearch: '🔎 Search folders / boxes...', globalSearch: '🔎 Global search: name / passage / barcode',
+        create: '+ New', viewGrid: 'Box View', viewOverview: 'Overview', toolbarExpand: 'Expand Toolbar', toolbarCollapse: 'Collapse Toolbar',
+        dataOps: 'Data:', import: 'Import', exportExcel: 'Export Excel', exportJson: 'Export Backup JSON', autoBackup: 'Auto Backup:', dir: 'Dir:', format: 'Format:', freq: 'Frequency:',
+        backupNow: 'Backup Now', backupAuth: 'Authorize Backup Folder', backupOff: 'Disable Auto Backup', advLog: 'Advanced / Logs (collapsed by default)', quickActions: 'Quick Actions:', folderSortTip: 'Long press a folder item to enter sort mode', changeDir: 'Change Folder', runBackupNow: 'Run Backup Now',
+        cellName: 'Cell Name', cellP: 'Passage (P)', cellDate: 'Freeze Date', dateFmt: 'yyyy/mm/dd', edit: 'Edit', submit: 'Apply', warnTitle: '⚠️ Low Stock Alert', totalInventory: 'Total Inventory', totalInvHint: 'Click to view all storage locations for this cell', boxSizeTag: '{rows}x{cols}', tubeUnit: 'tubes', multiSelect: 'Multi-select', on: 'ON', off: 'OFF', copy: 'Copy', paste: 'Paste', save: 'Save', clear: 'Clear',
+        overviewTitle: '📊 Folder / Box Overview', createTitle: 'Create', createFolder: 'New Folder', createBox: 'New Box',
+        statusTitle: 'Click to enable/authorize/disable', tip: 'Notice', ok: 'OK', close: 'Close',
+        locBadge: 'Location: {folder} · Box: {box} ({rows}x{cols})',
+        msgSelectOne: 'Select exactly one cell before checking global locations.', msgNoName: 'Selected cell has no name, unable to query inventory locations.',
+        msgNoStock: '✅ Stock is sufficient', msgRemain: '{count} left', inventoryTitle: '{name} · Inventory Locations ({count})', inventoryEmpty: 'No inventory locations found.', backupUnsupported: 'Auto backup: browser directory permission is unsupported', backupDisabled: 'Auto backup: disabled', backupReady: 'Auto backup: authorized', backupPending: 'Auto backup: authorization pending restore', backupUnauthorized: 'Auto backup: unauthorized folder',
+        copyNeedBox: 'Please select a box first.', copyNeedCell: 'Please select cell(s) first.', pasteNeedCell: 'Please select target cell(s) first.',
+        saveNeedCell: 'Please select cell(s) first.', clearNeedCell: 'Please select cells to clear first.', addFolderTitle: 'Add Folder', folderName: 'Folder Name', parentFolder: 'Parent Folder', cancel: 'Cancel', createBtn: 'Create', renameFolderTitle: 'Rename Folder', saveBtn: 'Save', deleteFolderTitle: 'Delete Folder', moveToFolder: 'Move boxes to', deleteBtn: 'Delete', addBoxTitle: 'Add Box', boxName: 'Box Name', boxFolder: 'Folder', boxSpec: 'Box Spec', actionTitle: 'Actions', folderActions: 'Folder Actions', boxActions: 'Box Actions', renameAction: 'Rename', moveAction: 'Move', boxActionTitle: 'Box Actions', targetFolder: 'Target Folder', boxDeleteConfirm: 'Delete this box and all samples inside?', clearConfirmTitle: 'Confirm Clear', clearConfirmTip: 'Clear selected positions?', confirm: 'Confirm', deleteFolderConfirm: 'Delete folder [{name}]?', deleteFolderWithRelated: 'This folder has {count} box(es). Please select a migration target before deleting.', doneClear: 'Cleared successfully.', copiedMsg: 'Copied {count} cell record(s).', copyFail: 'Copy failed. Please check clipboard permission.', pasteFailFormat: 'Paste failed: clipboard data format is invalid.', pasteFailCount: 'Paste failed: when copying multiple records, target count must match copy count, or copy only one record for batch overwrite.', pastedMsg: 'Pasted into {count} cell(s).', cellNameRequired: 'Cell name is required.', backupApiUnsupported: 'Your browser does not support directory write API. Local auto-backup will be used only.', backupEnabledMsg: 'Auto backup enabled. Future backups will be written to auto-backups.', backupAuthNotDone: 'Authorization not completed. Local auto-backup will be used only.', backupApiUnsupportedShort: 'Your browser does not support directory write API.', backupFolderUpdated: 'Backup folder updated.', backupFolderNotUpdated: 'Backup folder change was not completed.', backupDisabledMsg: 'Auto backup has been disabled.', backupTriggered: 'Manual backup triggered.', renameBoxTitle: 'Rename Box', moveBoxTitle: 'Move Box', deleteBoxTitle: 'Delete Box', addFolderNamePlaceholder: 'e.g. LN2 / -80 / Default', renameFolderNamePlaceholder: 'Enter new folder name', addBoxNamePlaceholder: 'e.g. Plate-1', addBoxSpec96: '96-well (8x12)', addBoxSpec81: '9x9 (81 cells)', addBoxSpec100: '10x10 (100 cells)', addBoxSpec72: '12x6 (72 cells)', addBoxSpecCustom: 'Custom rows/cols', customRows: 'Custom rows (n)', customCols: 'Custom cols (n)', customRowsPlaceholder: 'e.g. 8', customColsPlaceholder: 'e.g. 12', rootFolder: '(Root)', folderOptionPrefix: 'Folder', emptyTip: 'Please select or create a box on the left', miniTreeTitle: 'Location Tree', empty: 'Empty', allFolders: 'All Folders', subfoldersUnit: 'subfolders', subfoldersHover: 'Subfolders: {count}', hoverJump: 'Click to jump quickly', inventoryPos: 'R{row}C{col}', inventorySpec: '{rows}x{cols} · P: {p} · Date: {date}', cellHover: 'Pos: {pos}\nName: {name}\nP: {p}\nDate: {date}', boxesUnit: 'boxes', totalCapacity: 'Capacity', stored: 'Stored', emptySlots: 'Empty', unclassified: 'Uncategorized', folderNoBoxes: 'No boxes in this folder', boxNoSamples: 'No samples in this box', ovContainer: 'Boxes', ovSample: 'Samples', authorized: 'Authorized'
+      }
+    };
+    let gridZoom = 1;
+    let zoomControlDragging = null;
+    const savedEnabledState = localStorage.getItem(AUTO_BACKUP_ENABLED_KEY);
+    if (savedEnabledState === null) localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+    let autoBackupEnabled = (savedEnabledState ?? '1') !== '0';
+
+    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+
+
+    function openBackupHandleDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(BACKUP_HANDLE_DB, 1);
+        req.onupgradeneeded = () => {
+          const dbi = req.result;
+          if (!dbi.objectStoreNames.contains(BACKUP_HANDLE_STORE)) dbi.createObjectStore(BACKUP_HANDLE_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveDirectoryHandle(handle) {
+      try {
+        const dbi = await openBackupHandleDb();
+        await new Promise((resolve, reject) => {
+          const tx = dbi.transaction(BACKUP_HANDLE_STORE, 'readwrite');
+          tx.objectStore(BACKUP_HANDLE_STORE).put(handle, 'autoBackupDirHandle');
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        dbi.close();
+      } catch (err) {
+        console.warn('保存目录句柄失败:', err);
+      }
+    }
+
+    async function loadDirectoryHandle() {
+      try {
+        const dbi = await openBackupHandleDb();
+        const handle = await new Promise((resolve, reject) => {
+          const tx = dbi.transaction(BACKUP_HANDLE_STORE, 'readonly');
+          const req = tx.objectStore(BACKUP_HANDLE_STORE).get('autoBackupDirHandle');
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+        dbi.close();
+        return handle;
+      } catch (err) {
+        console.warn('读取目录句柄失败:', err);
+        return null;
+      }
+    }
+
+
+    async function verifyPermission(handle, readWrite = true, request = false) {
+      if (!handle) return false;
+      const opts = { mode: readWrite ? 'readwrite' : 'read' };
+      const q = await handle.queryPermission(opts);
+      if (q === 'granted') return true;
+      if (!request) return false;
+      try {
+        const r = await handle.requestPermission(opts);
+        return r === 'granted';
+      } catch {
+        return false;
+      }
+    }
+
+
+    async function clearDirectoryHandle() {
+      try {
+        const dbi = await openBackupHandleDb();
+        await new Promise((resolve, reject) => {
+          const tx = dbi.transaction(BACKUP_HANDLE_STORE, 'readwrite');
+          tx.objectStore(BACKUP_HANDLE_STORE).delete('autoBackupDirHandle');
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        dbi.close();
+      } catch (err) {
+        console.warn('清理目录句柄失败:', err);
+      }
+    }
+
+    async function ensureWritableBackupDir(interactive = false, forcePick = false) {
+      if (!('showDirectoryPicker' in window)) return null;
+      let dirHandle = forcePick ? null : await loadDirectoryHandle();
+      if (!dirHandle && interactive) {
+        dirHandle = await window.showDirectoryPicker({ id: 'freezer-auto-backup-dir', mode: 'readwrite' });
+        await saveDirectoryHandle(dirHandle);
+      }
+      if (!dirHandle) return null;
+
+      const granted = await verifyPermission(dirHandle, true, interactive);
+      if (!granted) return null;
+
+      return await dirHandle.getDirectoryHandle(AUTO_BACKUP_DIR, { create: true });
+    }
+
+    async function writeBackupFileToFolder(fileName, content) {
+      try {
+        const backupDir = await ensureWritableBackupDir(false);
+        if (!backupDir) return false;
+        const fileHandle = await backupDir.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        return true;
+      } catch (err) {
+        console.warn('写入文件夹自动备份失败:', err);
+        return false;
+      }
+    }
+
+    function setBackupStatus(text, mode = 'local') {
+      const targets = [document.getElementById('backup-status')].filter(Boolean);
+      targets.forEach(el => {
+        el.textContent = text;
+        el.classList.remove('ok', 'off');
+        if (mode === 'folder') el.classList.add('ok');
+        if (mode === 'off') el.classList.add('off');
+      });
+
+      const dirLabel = document.getElementById('backup-dir-label');
+      const dirTop = document.getElementById('backup-dir-top');
+      const showDir = mode !== 'off';
+      if (dirLabel) dirLabel.classList.toggle('hidden', !showDir);
+      if (dirTop) {
+        dirTop.classList.toggle('hidden', !showDir);
+        if (showDir) {
+          const fullPath = `${AUTO_BACKUP_DIR}/${getDailyBackupFileName()}`;
+          dirTop.textContent = mode === 'folder' ? `${fullPath} (${t('authorized')})` : fullPath;
+        }
+      }
+
+      const log = document.getElementById('last-backup-log');
+      if (log && localStorage.getItem(AUTO_BACKUP_KEY)) {
+        try {
+          const latest = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY));
+          if (latest?.savedAt) log.textContent = new Date(latest.savedAt).toLocaleTimeString('zh-CN', { hour12: false });
+        } catch {}
+      }
+    }
+
+    async function refreshBackupStatus() {
+      const el = document.getElementById('backup-status');
+      if (!el) return;
+      if (!('showDirectoryPicker' in window)) {
+        setBackupStatus(t('backupUnsupported'), 'local');
+        return;
+      }
+      if (!autoBackupEnabled) {
+        setBackupStatus(t('backupDisabled'), 'off');
+        return;
+      }
+      const writable = await ensureWritableBackupDir(false);
+      const everAuthorized = localStorage.getItem(AUTO_BACKUP_AUTHORIZED_KEY) === '1';
+      const mode = writable ? 'folder' : 'local';
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, mode);
+      setBackupStatus(
+        writable
+          ? t('backupReady')
+          : (everAuthorized
+            ? t('backupPending')
+            : t('backupUnauthorized')),
+        mode
+      );
+    }
+
+    async function enableFolderAutoBackup() {
+      autoBackupEnabled = true;
+      localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+      if (!('showDirectoryPicker' in window)) {
+        await refreshBackupStatus();
+        return openActionMessageModal(t('backupApiUnsupported'));
+      }
+      try {
+        await ensureWritableBackupDir(true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+        await refreshBackupStatus();
+        saveAutoBackup('grant-folder-backup');
+        openActionMessageModal(t('backupEnabledMsg'));
+      } catch (err) {
+        console.warn(err);
+        await refreshBackupStatus();
+        openActionMessageModal(t('backupAuthNotDone'));
+      }
+    }
+
+    async function changeBackupFolder() {
+      if (!('showDirectoryPicker' in window)) return openActionMessageModal(t('backupApiUnsupportedShort'));
+      try {
+        autoBackupEnabled = true;
+        localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '1');
+        await ensureWritableBackupDir(true, true);
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+        await refreshBackupStatus();
+        saveAutoBackup('change-folder');
+        openActionMessageModal(t('backupFolderUpdated'));
+      } catch (err) {
+        console.warn(err);
+        openActionMessageModal(t('backupFolderNotUpdated'));
+      }
+    }
+
+    async function disableAutoBackup() {
+      autoBackupEnabled = false;
+      localStorage.setItem(AUTO_BACKUP_ENABLED_KEY, '0');
+      localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'off');
+      localStorage.removeItem(AUTO_BACKUP_AUTHORIZED_KEY);
+      await clearDirectoryHandle();
+      await refreshBackupStatus();
+      openActionMessageModal(t('backupDisabledMsg'));
+    }
+
+
+
+
+    async function restoreBackupPermissionOnLoad() {
+      if (!autoBackupEnabled || !('showDirectoryPicker' in window)) return false;
+      try {
+        // 仅做静默恢复，不在页面加载时弹权限框（按需只在“启用/更改文件夹”时请求）
+        const handle = await loadDirectoryHandle();
+        if (!handle) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const granted = await verifyPermission(handle, true, false);
+        if (!granted) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        const writableDir = await ensureWritableBackupDir(false);
+        if (!writableDir) {
+          localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+          return false;
+        }
+        localStorage.setItem(AUTO_BACKUP_AUTHORIZED_KEY, '1');
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'folder');
+        return true;
+      } catch (err) {
+        console.warn('恢复备份目录权限失败:', err);
+        localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local');
+        return false;
+      }
+    }
+
+    function getDailyBackupFileName(date = new Date()) {
+      return `backup_${date.toISOString().slice(0, 10)}.json`;
+    }
+
+    function upsertDailyBackupRecord(folder, filePayload) {
+      folder.files = folder.files || [];
+      const idx = folder.files.findIndex(f => f.name === filePayload.name);
+      if (idx >= 0) folder.files[idx] = filePayload;
+      else folder.files.unshift(filePayload);
+      folder.files = folder.files
+        .sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))
+        .slice(0, AUTO_BACKUP_LIMIT);
+      return folder;
+    }
+
+    function coerceBackupData(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const source = (raw.data && typeof raw.data === 'object') ? raw.data : raw;
+
+      const folderMap = {};
+      const addFolder = (id, name, parentId = null) => {
+        const fid = String(id || '').trim();
+        if (!fid) return null;
+        if (!folderMap[fid]) folderMap[fid] = { name: String(name || fid), parentId: parentId || null };
+        else {
+          if (name) folderMap[fid].name = String(name);
+          if (parentId !== undefined && parentId !== null) folderMap[fid].parentId = parentId;
+        }
+        return fid;
+      };
+
+      const srcFolders = source.folders || source.locations || source.folderMap;
+      if (Array.isArray(srcFolders)) {
+        srcFolders.forEach((f, idx) => {
+          if (typeof f === 'string') { addFolder(`folder_${idx + 1}`, f, null); return; }
+          if (!f || typeof f !== 'object') return;
+          addFolder(f.id || f.folderId || f.key || `folder_${idx + 1}`, f.name || f.title || `位置${idx + 1}`, f.parentId || f.parent || null);
+        });
+      } else if (srcFolders && typeof srcFolders === 'object') {
+        Object.keys(srcFolders).forEach(fid => {
+          const f = srcFolders[fid];
+          if (typeof f === 'string') addFolder(fid, f, null);
+          else if (f && typeof f === 'object') addFolder(fid, f.name || f.title || fid, f.parentId || f.parent || null);
+        });
+      }
+
+      const rawBoxes = source.boxes || source.containers || source.freezers;
+      if (!rawBoxes) return null;
+      const boxPairs = Array.isArray(rawBoxes)
+        ? rawBoxes.map((b, i) => [b?.id || b?.boxId || b?.key || `box_${Date.now()}_${i}`, b])
+        : Object.entries(rawBoxes);
+
+      const boxes = {};
+      boxPairs.forEach(([id, b], idx) => {
+        if (!b || typeof b !== 'object') return;
+        const folderId = b.folderId || b.locationId || b.folder || b.location || 'default';
+        if (!folderMap[folderId]) addFolder(folderId, String(folderId), null);
+
+        let vials = b.vials || b.cells || b.samples || {};
+        if (Array.isArray(vials)) {
+          const mapped = {};
+          vials.forEach((item, i) => {
+            if (!item || typeof item !== 'object') return;
+            const pos = item.pos || item.position || item.key || `${Math.floor(i / 12) + 1}-${(i % 12) + 1}`;
+            mapped[pos] = {
+              name: item.name || item.cellName || '',
+              p: item.p || item.passage || '',
+              date: item.date || item.freezeDate || ''
+            };
+          });
+          vials = mapped;
+        }
+
+        boxes[String(id || `box_${idx + 1}`)] = {
+          name: b.name || b.title || `容器${idx + 1}`,
+          rows: Number(b.rows || b.r || b.height || 8) || 8,
+          cols: Number(b.cols || b.c || b.width || 12) || 12,
+          rowLabels: Array.isArray(b.rowLabels) ? b.rowLabels.map(v => String(v || '').trim()).filter(Boolean) : undefined,
+          colLabels: Array.isArray(b.colLabels) ? b.colLabels.map(v => String(v || '').trim()).filter(Boolean) : undefined,
+          folderId,
+          vials: (vials && typeof vials === 'object') ? vials : {}
+        };
+      });
+
+      if (!Object.keys(folderMap).length) folderMap.default = { name: '默认位置', parentId: null };
+      if (!folderMap.default) folderMap.default = { name: '默认位置', parentId: null };
+      return { folders: folderMap, boxes };
+    }
+
+    function loadLatestBackupDataFromLocal() {
+      try {
+        const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
+        const files = (folder.files || []).slice().sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+        const latest = files[0];
+        if (!latest || !latest.content) return null;
+        const data = JSON.parse(latest.content);
+        return coerceBackupData(data);
+      } catch (err) {
+        console.warn('读取最新备份失败:', err);
+        return null;
+      }
+    }
+
+    function saveAutoBackup(reason = 'manual') {
+      if (!autoBackupEnabled) return;
+      try {
+        const savedAt = new Date().toISOString();
+        const fileName = getDailyBackupFileName(new Date(savedAt));
+        const jsonContent = JSON.stringify(db, null, 2);
+
+        const filePayload = {
+          dir: AUTO_BACKUP_DIR,
+          name: fileName,
+          reason,
+          savedAt,
+          content: jsonContent
+        };
+        localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(filePayload));
+
+        const folder = JSON.parse(localStorage.getItem(AUTO_BACKUP_LIST_KEY) || '{"dir":"auto-backups","files":[]}');
+        folder.dir = AUTO_BACKUP_DIR;
+        upsertDailyBackupRecord(folder, filePayload);
+        localStorage.setItem(AUTO_BACKUP_LIST_KEY, JSON.stringify(folder));
+
+        // 文件夹写入为增强能力；即使失败也持续进行本地自动备份（无需手动再次启用）
+        writeBackupFileToFolder(fileName, jsonContent)
+          .then(ok => localStorage.setItem(AUTO_BACKUP_MODE_KEY, ok ? 'folder' : 'local'))
+          .catch(() => localStorage.setItem(AUTO_BACKUP_MODE_KEY, 'local'));
+      } catch (err) {
+        console.warn('自动备份失败:', err);
+      }
+    }
+
+    function registerAutoBackupHooks() {
+      const autoBackup = () => saveAutoBackup('page-close');
+      window.addEventListener('beforeunload', autoBackup);
+      window.addEventListener('pagehide', autoBackup);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveAutoBackup('visibility-hidden');
+      });
+    }
+
+    function loadHeaderSectionState() {
+      try {
+        return JSON.parse(localStorage.getItem(HEADER_SECTION_COLLAPSE_KEY) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveHeaderSectionState(state) {
+      localStorage.setItem(HEADER_SECTION_COLLAPSE_KEY, JSON.stringify(state));
+    }
+
+    function applyHeaderSectionState() {
+      // 新版工具条不再使用分块收起，历史状态忽略并确保显示
+      const mainCard = document.getElementById('main-actions-card');
+      const backupCard = document.getElementById('backup-actions-card');
+      if (mainCard) mainCard.classList.remove('hidden');
+      if (backupCard) backupCard.classList.remove('hidden');
+    }
+
+    function setHeaderSectionCollapsed(sectionId, collapsed) {
+      const state = loadHeaderSectionState();
+      state[sectionId] = collapsed;
+      saveHeaderSectionState(state);
+      applyHeaderSectionState();
+    }
+
+    function toggleHeaderSection(sectionId) {
+      const state = loadHeaderSectionState();
+      setHeaderSectionCollapsed(sectionId, !(state[sectionId] === true));
+    }
+
+    function expandHeaderSection(sectionId) {
+      setHeaderSectionCollapsed(sectionId, false);
+    }
+
+    function normalizeData() {
+      let changed = false;
+      if (!db.folders || typeof db.folders !== 'object') { db.folders = {}; changed = true; }
+      if (!db.boxes || typeof db.boxes !== 'object') { db.boxes = {}; changed = true; }
+      if (!Object.keys(db.folders).length) { db.folders.default = { name: '默认位置', parentId: null }; changed = true; }
+
+      Object.keys(db.folders).forEach(fid => {
+        const f = db.folders[fid] || {};
+        if (!f.name) { f.name = fid; changed = true; }
+        if (!Object.prototype.hasOwnProperty.call(f, 'parentId')) { f.parentId = null; changed = true; }
+        if (f.parentId === fid || (f.parentId && !db.folders[f.parentId])) { f.parentId = null; changed = true; }
+        db.folders[fid] = f;
+      });
+      if (db.folders.default && db.folders.default.parentId !== null) { db.folders.default.parentId = null; changed = true; }
+
+      Object.values(db.boxes).forEach(box => {
+        if (box.size && !box.rows) { box.rows = box.size; box.cols = box.size; changed = true; }
+        if (!box.rows) { box.rows = 8; changed = true; }
+        if (!box.cols) { box.cols = 12; changed = true; }
+        if (!box.vials) { box.vials = {}; changed = true; }
+        if (!box.folderId || !db.folders[box.folderId]) { box.folderId = 'default'; changed = true; }
+        if (Array.isArray(box.rowLabels)) {
+          box.rowLabels = box.rowLabels.map(v => String(v || '').trim()).filter(Boolean).slice(0, Number(box.rows) || 0);
+          if (!box.rowLabels.length) { delete box.rowLabels; changed = true; }
+          else if (box.rowLabels.length !== (Number(box.rows) || 0)) {
+            const fallback = Array.from({ length: Number(box.rows) || 0 }, (_, i) => String.fromCharCode(65 + i));
+            box.rowLabels = fallback.map((v, i) => box.rowLabels[i] || v);
+            changed = true;
+          }
+        }
+        if (Array.isArray(box.colLabels)) {
+          box.colLabels = box.colLabels.map(v => String(v || '').trim()).filter(Boolean).slice(0, Number(box.cols) || 0);
+          if (!box.colLabels.length) { delete box.colLabels; changed = true; }
+          else if (box.colLabels.length !== (Number(box.cols) || 0)) {
+            const fallback = Array.from({ length: Number(box.cols) || 0 }, (_, i) => String(i + 1));
+            box.colLabels = fallback.map((v, i) => box.colLabels[i] || v);
+            changed = true;
+          }
+        }
+      });
+
+      if (changed) save();
+    }
+
+
+
+    function isSidebarCollapsed() {
+      const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      return saved === null ? true : saved === '1';
+    }
+
+    function applySidebarCollapsedState() {
+      sidebarCollapsed = isSidebarCollapsed();
+      document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+      const btn = document.getElementById('sidebar-toggle');
+      if (btn) {
+        btn.textContent = sidebarCollapsed ? '▶' : '◀';
+        btn.title = sidebarCollapsed ? '展开导航栏' : '收起导航栏';
+      }
+      renderCollapsedNav();
+    }
+
+    function toggleSidebar() {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, isSidebarCollapsed() ? '0' : '1');
+      applySidebarCollapsedState();
+    }
+
+    function toggleCollapsedNavFolder(folderId, e) {
+      if (e) e.stopPropagation();
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderCollapsedNav();
+    }
+
+    function handleCollapsedFolderClick(folderId) {
+      setFolderFilter(folderId);
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderCollapsedNav();
+    }
+
+    function renderCollapsedNav() {
+      const wrap = document.getElementById('collapsed-nav');
+      if (!wrap) return;
+      const childrenMap = getFolderChildrenMap();
+      let html = `<div class="mini-tree-title">${t('miniTreeTitle')}</div>`;
+
+      const prefixFor = (depth, isLast) => {
+        if (depth <= 0) return '';
+        return `${'│'.repeat(Math.max(depth - 1, 0))}${isLast ? '└' : '├'}`;
+      };
+
+      const renderNode = (fid, depth, isLast) => {
+        const folder = db.folders[fid] || {};
+        const fname = folder.name || fid;
+        const expanded = collapsedNavExpandedFolders.has(fid);
+        const childFolders = childrenMap[fid] || [];
+        const boxes = Object.keys(db.boxes)
+          .filter(bid => db.boxes[bid]?.folderId === fid)
+          .sort((a, b) => (db.boxes[a]?.name || '').localeCompare(db.boxes[b]?.name || '', 'zh-CN'));
+        const descendantSet = new Set(getDescendantFolderIds(fid));
+        const boxCount = Object.values(db.boxes).filter(b => descendantSet.has(b.folderId)).length;
+        const label = `${fname} (${boxCount})`;
+        const prefix = prefixFor(depth, isLast);
+
+        html += `<div class="mini-tree-node folder" onclick="handleCollapsedFolderClick('${fid}')" title="${getFolderPathName(fid)}"><span class="mini-tree-prefix">${prefix}</span><span class="mini-tree-arrow">${expanded ? '▾' : '▸'}</span><span class="mini-tree-text">${label}</span></div>`;
+
+        if (!expanded) return;
+
+        childFolders.forEach((childId, idx) => {
+          const childIsLast = idx === childFolders.length - 1 && boxes.length === 0;
+          renderNode(childId, depth + 1, childIsLast);
+        });
+
+        boxes.forEach((bid, idx) => {
+          const b = db.boxes[bid] || {};
+          const bname = b.name || bid;
+          const meta = `${b.rows || 8}x${b.cols || 12}`;
+          const boxPrefix = prefixFor(depth + 1, idx === boxes.length - 1);
+          html += `<div class="mini-tree-node box ${currentBoxId === bid ? 'active' : ''}" onclick="jumpCollapsedBox('${bid}')" title="${getFolderPathName(fid)} / ${bname}"><span class="mini-tree-prefix">${boxPrefix}</span><span class="mini-tree-arrow">├</span><span class="mini-tree-text">${bname} · ${meta}</span></div>`;
+        });
+
+        if (!childFolders.length && !boxes.length) {
+          const emptyPrefix = prefixFor(depth + 1, true);
+          html += `<div class="mini-tree-node box" title="${t('empty')}"><span class="mini-tree-prefix">${emptyPrefix}</span><span class="mini-tree-arrow">·</span><span class="mini-tree-text">(${t('empty')})</span></div>`;
+        }
+      };
+
+      const roots = childrenMap[null] || [];
+      roots.forEach((fid, idx) => renderNode(fid, 0, idx === roots.length - 1));
+      wrap.innerHTML = html;
+    }
+
+    function jumpCollapsedBox(boxId) {
+      const box = db.boxes[boxId];
+      if (!box) return;
+      currentFolderId = box.folderId || 'all';
+      renderFolderList();
+      switchBox(boxId);
+      renderCollapsedNav();
+    }
+
+    async function handleBackupStatusClick() {
+      if (!autoBackupEnabled) {
+        return await enableFolderAutoBackup();
+      }
+      const writable = await ensureWritableBackupDir(false);
+      if (writable) {
+        return await disableAutoBackup();
+      }
+      return await enableFolderAutoBackup();
+    }
+
+    function runImmediateBackup() {
+      saveAutoBackup('manual-toolbar');
+      const log = document.getElementById('last-backup-log');
+      if (log) log.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      openActionMessageModal(t('backupTriggered'));
+    }
+
+
+    function t(key, vars = {}) {
+      const pack = I18N[currentLang] || I18N.zh;
+      let text = pack[key] ?? I18N.zh[key] ?? key;
+      Object.keys(vars).forEach(k => { text = text.replace(new RegExp(`\{${k}\}`, 'g'), vars[k]); });
+      return text;
+    }
+
+    function updateLangToggle() {
+      const zhBtn = document.getElementById('lang-btn-zh');
+      const enBtn = document.getElementById('lang-btn-en');
+      if (zhBtn) zhBtn.classList.toggle('active', currentLang === 'zh');
+      if (enBtn) enBtn.classList.toggle('active', currentLang === 'en');
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang === 'en' ? 'en' : 'zh';
+      localStorage.setItem(LANG_KEY, currentLang);
+      applyI18n();
+    }
+
+    function applyI18n() {
+      const map = {
+        'sidebar-search': ['placeholder', t('sidebarSearch')],
+        'global-search': ['placeholder', t('globalSearch')],
+        'btn-create': ['text', t('create')],
+        'btn-view-grid': ['text', t('viewGrid')],
+        'btn-view-overview': ['text', t('viewOverview')],
+        'label-data-ops': ['text', t('dataOps')],
+        'btn-import': ['text', t('import')],
+        'btn-export-excel': ['text', t('exportExcel')],
+        'btn-export-json': ['text', t('exportJson')],
+        'label-auto-backup': ['text', t('autoBackup')],
+        'backup-dir-label': ['text', t('dir')],
+        'label-format': ['text', t('format')],
+        'label-frequency': ['text', t('freq')],
+        'backup-now-btn': ['text', t('backupNow')],
+        'backup-folder-btn': ['text', t('backupAuth')],
+        'backup-toggle-btn': ['text', t('backupOff')],
+        'label-advanced-log': ['text', t('advLog')],
+        'label-quick-actions': ['text', t('quickActions')],
+        'btn-change-folder': ['text', t('changeDir')],
+        'btn-run-backup': ['text', t('runBackupNow')],
+        'folder-sort-tip': ['text', t('folderSortTip')],
+        'label-cell-name': ['text', t('cellName')],
+        'label-cell-p': ['text', t('cellP')],
+        'label-cell-date': ['text', t('cellDate')],
+        'empty-tip': ['text', t('emptyTip')],
+        'total-inv-label': ['text', t('totalInventory')],
+        'total-inv-unit': ['text', t('tubeUnit')],
+        'multi-select-label': ['text', t('multiSelect')],
+        'label-edit': ['text', t('edit')],
+        'label-submit': ['text', t('submit')],
+        'warn-title': ['text', t('warnTitle')],
+        'overview-title': ['text', t('overviewTitle')],
+        'create-modal-title': ['text', t('createTitle')],
+        'btn-create-folder': ['text', t('createFolder')],
+        'btn-create-box': ['text', t('createBox')],
+        'add-folder-modal-title': ['text', t('addFolderTitle')],
+        'label-add-folder-name': ['text', t('folderName')],
+        'label-add-folder-parent': ['text', t('parentFolder')],
+        'btn-add-folder-cancel': ['text', t('cancel')],
+        'btn-add-folder-submit': ['text', t('createBtn')],
+        'rename-folder-modal-title': ['text', t('renameFolderTitle')],
+        'label-rename-folder-name': ['text', t('folderName')],
+        'btn-rename-folder-cancel': ['text', t('cancel')],
+        'btn-rename-folder-submit': ['text', t('saveBtn')],
+        'delete-folder-modal-title': ['text', t('deleteFolderTitle')],
+        'label-delete-folder-target': ['text', t('moveToFolder')],
+        'btn-delete-folder-cancel': ['text', t('cancel')],
+        'btn-delete-folder-submit': ['text', t('deleteBtn')],
+        'add-box-modal-title': ['text', t('addBoxTitle')],
+        'label-add-box-name': ['text', t('boxName')],
+        'label-add-box-folder': ['text', t('boxFolder')],
+        'label-add-box-spec': ['text', t('boxSpec')],
+        'label-add-box-custom-rows': ['text', t('customRows')],
+        'label-add-box-custom-cols': ['text', t('customCols')],
+        'btn-add-box-cancel': ['text', t('cancel')],
+        'btn-add-box-submit': ['text', t('createBtn')],
+        'btn-nav-action-close': ['text', t('close')],
+        'label-box-action-name': ['text', t('boxName')],
+        'label-box-action-folder': ['text', t('targetFolder')],
+        'btn-box-action-cancel': ['text', t('cancel')],
+        'clear-confirm-title': ['text', t('clearConfirmTitle')],
+        'clear-confirm-tip': ['text', t('clearConfirmTip')],
+        'btn-clear-confirm-cancel': ['text', t('cancel')],
+        'btn-clear-confirm-submit': ['text', t('confirm')],
+        'btn-inventory-close': ['text', t('close')]
+      };
+      Object.entries(map).forEach(([id, [kind, val]]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (kind === 'placeholder') el.placeholder = val;
+        else el.textContent = val;
+      });
+      const copyStrong = document.querySelector('#btn-copy strong');
+      const pasteStrong = document.querySelector('#btn-paste strong');
+      const saveStrong = document.querySelector('#btn-save strong');
+      const clearStrong = document.querySelector('#btn-clear strong');
+      if (copyStrong) copyStrong.textContent = t('copy');
+      if (pasteStrong) pasteStrong.textContent = t('paste');
+      if (saveStrong) saveStrong.textContent = t('save');
+      if (clearStrong) clearStrong.textContent = t('clear');
+      const msIndicator = document.getElementById('multi-select-indicator');
+      if (msIndicator) msIndicator.textContent = multiSelectMode ? t('on') : t('off');
+      const addFolderInput = document.getElementById('add-folder-name');
+      if (addFolderInput) addFolderInput.placeholder = t('addFolderNamePlaceholder');
+      const renameInput = document.getElementById('rename-folder-name');
+      if (renameInput) renameInput.placeholder = t('renameFolderNamePlaceholder');
+      const addBoxInput = document.getElementById('add-box-name');
+      if (addBoxInput) addBoxInput.placeholder = t('addBoxNamePlaceholder');
+      const boxNameInput = document.getElementById('box-action-name');
+      if (boxNameInput) boxNameInput.placeholder = currentLang === 'en' ? 'Enter new box name' : '请输入新的容器名称';
+      const customRowsInput = document.getElementById('add-box-custom-rows');
+      const customColsInput = document.getElementById('add-box-custom-cols');
+      if (customRowsInput) customRowsInput.placeholder = t('customRowsPlaceholder');
+      if (customColsInput) customColsInput.placeholder = t('customColsPlaceholder');
+      const specSel = document.getElementById('add-box-spec');
+      if (specSel) {
+        const o96 = specSel.querySelector('option[value="8,12"]');
+        const o81 = specSel.querySelector('option[value="9,9"]');
+        const o100 = specSel.querySelector('option[value="10,10"]');
+        const o72 = specSel.querySelector('option[value="12,6"]');
+        const oc = specSel.querySelector('option[value="custom"]');
+        if (o96) o96.textContent = t('addBoxSpec96');
+        if (o81) o81.textContent = t('addBoxSpec81');
+        if (o100) o100.textContent = t('addBoxSpec100');
+        if (o72) o72.textContent = t('addBoxSpec72');
+        if (oc) oc.textContent = t('addBoxSpecCustom');
+      }
+      const backupStatus = document.getElementById('backup-status');
+      if (backupStatus) backupStatus.title = t('statusTitle');
+      const boxDeleteWrap = document.getElementById('box-action-delete-wrap');
+      if (boxDeleteWrap) boxDeleteWrap.textContent = t('boxDeleteConfirm');
+      const okBtn = document.querySelector('#action-message-modal-mask .btn.primary');
+      if (okBtn) okBtn.textContent = t('ok');
+      const closeBtns = document.querySelectorAll('#nav-action-modal-mask .btn, #inventory-locations-modal-mask .btn');
+      closeBtns.forEach(el => el.textContent = t('close'));
+      document.documentElement.lang = currentLang === 'en' ? 'en' : 'zh-CN';
+      const dateInput = document.getElementById('cell-date');
+      const datePicker = document.getElementById('cell-date-picker');
+      if (dateInput) {
+        dateInput.placeholder = t('dateFmt');
+        dateInput.title = t('dateFmt');
+      }
+      if (datePicker) datePicker.lang = 'en-GB';
+      const totalInvLink = document.getElementById('inventory-total-link');
+      if (totalInvLink) totalInvLink.title = t('totalInvHint');
+      updateLangToggle();
+      applyTopToolbarCollapsedState();
+      renderFolderList();
+      renderCollapsedNav();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderOverviewFolderStrip();
+      updateOverview();
+      updateBoxLocationBadge();
+      updateWarningBoard();
+      refreshBackupStatus();
+      renderFolderOptions();
+    }
+
+    function isTopToolbarCollapsed() {
+      const raw = localStorage.getItem(TOP_TOOLBAR_COLLAPSED_KEY);
+      if (raw === null) {
+        localStorage.setItem(TOP_TOOLBAR_COLLAPSED_KEY, '1');
+        return true;
+      }
+      return raw === '1';
+    }
+
+    function applyTopToolbarCollapsedState() {
+      const toolbar = document.getElementById('top-toolbar');
+      const btn = document.getElementById('toolbar-toggle-btn');
+      if (!toolbar || !btn) return;
+      const collapsed = isTopToolbarCollapsed();
+      toolbar.classList.toggle('hidden', collapsed);
+      btn.textContent = collapsed ? t('toolbarExpand') : t('toolbarCollapse');
+    }
+
+    function toggleTopToolbar() {
+      const next = isTopToolbarCollapsed() ? '0' : '1';
+      localStorage.setItem(TOP_TOOLBAR_COLLAPSED_KEY, next);
+      applyTopToolbarCollapsedState();
+      applySidebarCollapsedState();
+    }
+
+    async function init() {
+      registerAutoBackupHooks();
+
+      const firstLoadDone = localStorage.getItem(FIRST_LOAD_KEY) === '1';
+      if (firstLoadDone) {
+        const latest = loadLatestBackupDataFromLocal();
+        if (latest) db = latest;
+      } else {
+        localStorage.setItem(FIRST_LOAD_KEY, '1');
+      }
+
+      normalizeData();
+      collapsedNavExpandedFolders = new Set(Object.keys(db.folders));
+      renderFolderOptions();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+      renderBoxFilters();
+      updateWarningBoard();
+      renderOverviewFolderStrip();
+      updateOverview();
+
+      await restoreBackupPermissionOnLoad();
+      refreshBackupStatus();
+      renderFolderOptions();
+      applyHeaderSectionState();
+      applyTopToolbarCollapsedState();
+      applySidebarCollapsedState();
+      initGridZoomControls();
+      updateGridZoom();
+      if (!Object.keys(db.boxes).length) document.getElementById('empty-tip').style.display = 'block';
+      updateBoxLocationBadge();
+      updateMultiSelectButton();
+      applyI18n();
+    }
+
+    function getFolderChildrenMap() {
+      const map = {};
+      Object.keys(db.folders).forEach(fid => {
+        const parentId = db.folders[fid]?.parentId || null;
+        if (!map[parentId]) map[parentId] = [];
+        map[parentId].push(fid);
+      });
+      return map;
+    }
+
+    function getOrderedFolderIds() {
+      const map = getFolderChildrenMap();
+      const ordered = [];
+      const visited = new Set();
+      const walk = (parentId) => {
+        (map[parentId] || []).forEach(fid => {
+          if (visited.has(fid)) return;
+          visited.add(fid);
+          ordered.push(fid);
+          walk(fid);
+        });
+      };
+      walk(null);
+      Object.keys(db.folders).forEach(fid => { if (!visited.has(fid)) ordered.push(fid); });
+      return ordered;
+    }
+
+    function getFolderDepth(folderId) {
+      let depth = 0;
+      let cur = db.folders[folderId]?.parentId || null;
+      const guard = new Set([folderId]);
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        depth += 1;
+        cur = db.folders[cur]?.parentId || null;
+      }
+      return depth;
+    }
+
+    function getDescendantFolderIds(folderId) {
+      const map = getFolderChildrenMap();
+      const out = [];
+      const walk = (fid) => {
+        out.push(fid);
+        (map[fid] || []).forEach(walk);
+      };
+      walk(folderId);
+      return out;
+    }
+
+    function getFolderPathName(folderId) {
+      const names = [];
+      let cur = folderId;
+      const guard = new Set();
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        names.unshift(db.folders[cur].name || cur);
+        cur = db.folders[cur].parentId || null;
+      }
+      return names.join(' / ');
+    }
+
+    function getFolderColor(folderId) {
+      const palette = ['#1677ff', '#13c2c2', '#722ed1', '#eb2f96', '#fa8c16', '#52c41a', '#2f54eb', '#f5222d'];
+      if (!folderId || folderId === 'all') return '#69c0ff';
+      let hash = 0;
+      for (let i = 0; i < folderId.length; i++) hash = folderId.charCodeAt(i) + ((hash << 5) - hash);
+      return palette[Math.abs(hash) % palette.length];
+    }
+
+    function expandFolderAncestors(folderId) {
+      let cur = db.folders[folderId]?.parentId || null;
+      const guard = new Set([folderId]);
+      while (cur && db.folders[cur] && !guard.has(cur)) {
+        guard.add(cur);
+        collapsedNavExpandedFolders.add(cur);
+        cur = db.folders[cur].parentId || null;
+      }
+    }
+
+    function toggleFolderTreeExpand(folderId, e) {
+      if (e) e.stopPropagation();
+      if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+      else collapsedNavExpandedFolders.add(folderId);
+      renderFolderList();
+      renderCollapsedNav();
+    }
+
+    function handleFolderTreeItemClick(folderId, expandable) {
+      if (folderSortMode) return;
+      if (expandable) {
+        if (collapsedNavExpandedFolders.has(folderId)) collapsedNavExpandedFolders.delete(folderId);
+        else collapsedNavExpandedFolders.add(folderId);
+      }
+      setFolderFilter(folderId);
+    }
+
+    function setFolderFilter(folderId) {
+      currentFolderId = folderId;
+      if (folderId !== 'all') expandFolderAncestors(folderId);
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+    }
+
+    function setOverviewFolderFilter(folderId) {
+      currentOverviewFolderId = folderId;
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function renderOverviewFolderStrip() {
+      const strip = document.getElementById('overview-folder-strip');
+      const folderIds = getOrderedFolderIds();
+      strip.innerHTML = [
+        `<div class="overview-chip" onclick="setOverviewFolderFilter('all')">${t('allFolders')}</div>`,
+        ...folderIds.map(fid => `<div class="overview-chip" style="color:${getFolderColor(fid)}" onclick="setOverviewFolderFilter('${fid}')">${getFolderPathName(fid)}</div>`)
+      ].join('');
+    }
+
+
+    function handleUnifiedSidebarSearch() {
+      const keyword = (document.getElementById('sidebar-search')?.value || '').trim().toLowerCase();
+      folderSearchKeyword = keyword;
+      boxSearchKeyword = keyword;
+      renderFolderList();
+      renderBoxList();
+    }
+
+    function handleFolderSidebarSearch() { handleUnifiedSidebarSearch(); }
+    function handleBoxSidebarSearch() { handleUnifiedSidebarSearch(); }
+
+    function startFolderLongPress(folderId) {
+      if (folderSortMode || folderId === 'default') return;
+      clearTimeout(folderLongPressTimer);
+      folderLongPressTimer = setTimeout(() => {
+        folderSortMode = true;
+        renderFolderList();
+      }, 450);
+    }
+
+    function cancelFolderLongPress() {
+      clearTimeout(folderLongPressTimer);
+      folderLongPressTimer = null;
+    }
+
+    function finishFolderSortMode(e) {
+      if (e) e.stopPropagation();
+      folderSortMode = false;
+      renderFolderList();
+    }
+
+    function moveFolderOrder(folderId, delta, e) {
+      if (e) e.stopPropagation();
+      const movable = Object.keys(db.folders).filter(id => id !== 'default');
+      const idx = movable.indexOf(folderId);
+      const target = idx + delta;
+      if (idx < 0 || target < 0 || target >= movable.length) return;
+      const swapped = movable.slice();
+      [swapped[idx], swapped[target]] = [swapped[target], swapped[idx]];
+
+      const entries = [];
+      if (db.folders.default) entries.push(['default', db.folders.default]);
+      swapped.forEach(id => entries.push([id, db.folders[id]]));
+      db.folders = Object.fromEntries(entries);
+      save();
+      renderFolderList();
+      renderBoxList();
+      renderCollapsedNav();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function getLowInventoryNames() {
+      const counts = {};
+      Object.values(db.boxes).forEach(b => Object.values(b.vials || {}).forEach(v => {
+        if (v && v.name) counts[v.name] = (counts[v.name] || 0) + 1;
+      }));
+      return new Set(Object.keys(counts).filter(name => counts[name] <= 3));
+    }
+
+    function renderBoxFilters() {
+      const el = document.getElementById('box-filter-chips');
+      if (!el) return;
+      const lowBoxCount = Object.values(db.boxes).filter(b => Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name))).length;
+      el.innerHTML = `
+        <button class="side-filter ${boxFilterMode === 'all' ? 'active' : ''}" onclick="setBoxFilterMode('all')">全部 ${Object.keys(db.boxes).length}</button>
+        <button class="side-filter ${boxFilterMode === 'low' ? 'active' : ''}" onclick="setBoxFilterMode('low')">低库存 ${lowBoxCount}</button>
+      `;
+    }
+
+    function setBoxFilterMode(mode) {
+      boxFilterMode = mode;
+      renderBoxFilters();
+      renderBoxList();
+    }
+
+    function openCreateModal() {
+      const mask = document.getElementById('create-modal-mask');
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    function closeCreateModal(e) {
+      if (e && e.target && e.target.id !== 'create-modal-mask') return;
+      const mask = document.getElementById('create-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function addFolder() {
+      const mask = document.getElementById('add-folder-modal-mask');
+      const input = document.getElementById('add-folder-name');
+      const parentSel = document.getElementById('add-folder-parent');
+      if (input) input.value = '';
+      renderFolderOptions();
+      if (parentSel) {
+        const currentValid = currentFolderId !== 'all' && db.folders[currentFolderId];
+        parentSel.value = currentValid ? currentFolderId : 'root';
+      }
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => input?.focus(), 30);
+    }
+
+    function closeAddFolderModal(e) {
+      if (e && e.target && e.target.id !== 'add-folder-modal-mask') return;
+      const mask = document.getElementById('add-folder-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function submitAddFolderModal() {
+      const name = (document.getElementById('add-folder-name')?.value || '').trim();
+      if (!name) return alert('请输入位置文件夹名称。');
+      const id = 'folder_' + Date.now();
+      const parentRaw = document.getElementById('add-folder-parent')?.value || 'root';
+      const parentId = parentRaw === 'root' ? null : parentRaw;
+      db.folders[id] = { name, parentId };
+      currentFolderId = id;
+      save();
+      closeAddFolderModal();
+      renderFolderOptions();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function renameFolder(id, e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      const folder = db.folders[id];
+      if (!folder) return;
+      folderRenameId = id;
+      const input = document.getElementById('rename-folder-name');
+      if (input) input.value = folder.name || '';
+      const mask = document.getElementById('rename-folder-modal-mask');
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => input?.focus(), 30);
+    }
+
+    function closeRenameFolderModal(e) {
+      if (e && e.target && e.target.id !== 'rename-folder-modal-mask') return;
+      const mask = document.getElementById('rename-folder-modal-mask');
+      if (mask) mask.classList.add('hidden');
+      folderRenameId = null;
+    }
+
+    function submitRenameFolderModal() {
+      if (!folderRenameId || !db.folders[folderRenameId]) return closeRenameFolderModal();
+      const next = (document.getElementById('rename-folder-name')?.value || '').trim();
+      if (!next) return alert('请输入新的文件夹名称。');
+      db.folders[folderRenameId].name = next;
+      save();
+      closeRenameFolderModal();
+      renderFolderOptions();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function deleteFolder(id, e) {
+      e.stopPropagation();
+      if (id === 'default') return alert('默认位置不可删除。');
+      const folder = db.folders[id];
+      if (!folder) return;
+      const related = Object.values(db.boxes).filter(b => b.folderId === id).length;
+      folderDeleteState = { folderId: id, related };
+
+      const tip = document.getElementById('delete-folder-tip');
+      const wrap = document.getElementById('delete-folder-target-wrap');
+      const target = document.getElementById('delete-folder-target');
+      if (tip) tip.textContent = t('deleteFolderConfirm', { name: folder.name });
+
+      if (related > 0) {
+        wrap?.classList.remove('hidden');
+        if (tip) tip.textContent = t('deleteFolderWithRelated', { count: related });
+        if (target) {
+          const targetFolderIds = getOrderedFolderIds().filter(fid => fid !== id);
+          const options = targetFolderIds.map(fid => `<option value="${fid}">${getFolderPathName(fid)}</option>`);
+          target.innerHTML = options.join('');
+          target.value = (db.folders.default && id !== 'default' && targetFolderIds.includes('default'))
+            ? 'default'
+            : (targetFolderIds[0] || '');
+        }
+      } else {
+        wrap?.classList.add('hidden');
+      }
+
+      const mask = document.getElementById('delete-folder-modal-mask');
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    function closeDeleteFolderModal(e) {
+      if (e && e.target && e.target.id !== 'delete-folder-modal-mask') return;
+      const mask = document.getElementById('delete-folder-modal-mask');
+      if (mask) mask.classList.add('hidden');
+      folderDeleteState = { folderId: null, related: 0 };
+    }
+
+    function submitDeleteFolderModal() {
+      const { folderId, related } = folderDeleteState;
+      if (!folderId || !db.folders[folderId]) return closeDeleteFolderModal();
+
+      if (related > 0) {
+        const targetId = document.getElementById('delete-folder-target')?.value;
+        if (!targetId || !db.folders[targetId] || targetId === folderId) return alert('请选择有效的迁移目标文件夹。');
+        Object.values(db.boxes).forEach(box => {
+          if (box.folderId === folderId) box.folderId = targetId;
+        });
+      }
+
+      const fallbackParent = db.folders[folderId]?.parentId || null;
+      Object.keys(db.folders).forEach(fid => { if (db.folders[fid].parentId === folderId) db.folders[fid].parentId = fallbackParent; });
+      delete db.folders[folderId];
+      if (currentFolderId === folderId) currentFolderId = 'all';
+
+      save();
+      closeDeleteFolderModal();
+      renderFolderOptions();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function renderFolderOptions() {
+      const ordered = getOrderedFolderIds();
+      const options = ordered.map(id => {
+        const depth = getFolderDepth(id);
+        const prefix = '　'.repeat(depth);
+        return `<option value="${id}">${t('folderOptionPrefix')}: ${prefix}${db.folders[id].name}</option>`;
+      }).join('');
+      const sel = document.getElementById('new-box-folder');
+      if (sel) sel.innerHTML = options;
+      const modalSel = document.getElementById('add-box-folder');
+      if (modalSel) modalSel.innerHTML = options;
+
+      const parentSel = document.getElementById('add-folder-parent');
+      if (parentSel) {
+        const parentOptions = [`<option value="root">${t('rootFolder')}</option>`, ...ordered.map(id => {
+          const depth = getFolderDepth(id);
+          const prefix = '　'.repeat(depth);
+          return `<option value="${id}">${prefix}${db.folders[id].name}</option>`;
+        })];
+        parentSel.innerHTML = parentOptions.join('');
+      }
+    }
+
+    function openNavActionModal(type, id, e) {
+      if (e) e.stopPropagation();
+      navActionState = { type, id };
+      const title = document.getElementById('nav-action-modal-title');
+      const list = document.getElementById('nav-action-list');
+      const mask = document.getElementById('nav-action-modal-mask');
+      if (!list || !mask) return;
+      if (title) title.textContent = type === 'folder' ? t('folderActions') : t('boxActions');
+      const actions = type === 'folder'
+        ? [
+            { key: 'rename-folder', label: `✎ ${t('renameAction')}` },
+            { key: 'delete-folder', label: `🗑 ${t('deleteBtn')}` }
+          ]
+        : [
+            { key: 'rename-box', label: `✎ ${t('renameAction')}` },
+            { key: 'move-box', label: `📁 ${t('moveAction')}` },
+            { key: 'delete-box', label: `✕ ${t('deleteBtn')}` }
+          ];
+      list.innerHTML = actions.map(a => `<button class="nav-action-option" onclick="runNavAction('${a.key}')">${a.label}</button>`).join('');
+      mask.classList.remove('hidden');
+    }
+
+    function closeNavActionModal(e) {
+      if (e && e.target && e.target.id !== 'nav-action-modal-mask') return;
+      const mask = document.getElementById('nav-action-modal-mask');
+      if (mask) mask.classList.add('hidden');
+      navActionState = { type: null, id: null };
+    }
+
+    function runNavAction(action) {
+      const { id } = navActionState;
+      closeNavActionModal();
+      if (!id) return;
+      if (action === 'rename-folder') return renameFolder(id, { stopPropagation(){} });
+      if (action === 'delete-folder') return deleteFolder(id, { stopPropagation(){} });
+      if (action === 'rename-box') return openBoxActionModal('rename', id);
+      if (action === 'move-box') return openBoxActionModal('move', id);
+      if (action === 'delete-box') return openBoxActionModal('delete', id);
+    }
+
+    function renderFolderList() {
+      const list = document.getElementById('folder-list');
+      list.innerHTML = '';
+
+      if (folderSortMode) {
+        const tip = document.createElement('div');
+        tip.className = 'muted';
+        tip.style.marginBottom = '6px';
+        tip.innerHTML = '排序模式：使用 ↑↓ 调整顺序，完成后点击 <button class="mini-btn" onclick="finishFolderSortMode(event)">完成</button>';
+        list.appendChild(tip);
+      }
+
+      const childrenMap = getFolderChildrenMap();
+      const key = folderSearchKeyword.trim().toLowerCase();
+      const visibleFolders = new Set();
+      const visibleBoxesByFolder = {};
+
+      Object.keys(db.boxes).forEach(bid => {
+        const b = db.boxes[bid];
+        if (!b) return;
+        if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return;
+        const fid = b.folderId || 'default';
+        if (!visibleBoxesByFolder[fid]) visibleBoxesByFolder[fid] = [];
+        visibleBoxesByFolder[fid].push(bid);
+      });
+
+      const markVisibleWithAncestors = (fid) => {
+        let cur = fid;
+        const guard = new Set();
+        while (cur && db.folders[cur] && !guard.has(cur)) {
+          visibleFolders.add(cur);
+          collapsedNavExpandedFolders.add(cur);
+          guard.add(cur);
+          cur = db.folders[cur].parentId || null;
+        }
+      };
+
+      if (key) {
+        getOrderedFolderIds().forEach(fid => {
+          const name = (db.folders[fid]?.name || '').toLowerCase();
+          const path = getFolderPathName(fid).toLowerCase();
+          if (name.includes(key) || path.includes(key)) markVisibleWithAncestors(fid);
+        });
+        Object.keys(visibleBoxesByFolder).forEach(fid => {
+          const matchedBoxes = visibleBoxesByFolder[fid].filter(bid => (db.boxes[bid]?.name || '').toLowerCase().includes(key));
+          if (matchedBoxes.length) {
+            visibleBoxesByFolder[fid] = matchedBoxes;
+            markVisibleWithAncestors(fid);
+          } else {
+            delete visibleBoxesByFolder[fid];
+          }
+        });
+      }
+
+      const renderNode = (fid, depth) => {
+        if (key && !visibleFolders.has(fid)) return;
+        const folder = db.folders[fid];
+        const descendants = new Set(getDescendantFolderIds(fid));
+        const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
+        const childIds = (childrenMap[fid] || []).filter(cid => !key || visibleFolders.has(cid));
+        const folderBoxIds = (visibleBoxesByFolder[fid] || []).slice().sort((a, b) => (db.boxes[a]?.name || '').localeCompare(db.boxes[b]?.name || '', 'zh-CN'));
+        const expanded = collapsedNavExpandedFolders.has(fid) || !!key;
+        const expandable = childIds.length > 0 || folderBoxIds.length > 0;
+
+        const div = document.createElement('div');
+        div.className = 'item folder-item tree-item nav-folder-card';
+        div.style.borderLeftColor = getFolderColor(fid);
+        const sortOps = folderSortMode && fid !== 'default'
+          ? `<span class="folder-sort-ops"><button class="mini-btn" onclick="moveFolderOrder('${fid}',-1,event)">↑</button><button class="mini-btn" onclick="moveFolderOrder('${fid}',1,event)">↓</button></span>`
+          : '';
+        const arrow = expandable ? (expanded ? '▾' : '▸') : '•';
+        const arrowClick = expandable ? `onclick="toggleFolderTreeExpand('${fid}',event)"` : '';
+        const directBoxes = Object.values(db.boxes).filter(b => b.folderId === fid);
+        const boxCount = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
+        const subfolderTip = t('subfoldersHover', { count: childIds.length });
+        const folderCapacity = directBoxes.reduce((sum, b) => sum + ((Number(b.rows) || 0) * (Number(b.cols) || 0)), 0);
+        const folderStored = directBoxes.reduce((sum, b) => sum + Object.values(b.vials || {}).filter(v => v?.name).length, 0);
+        div.innerHTML = `
+          <div class="item-info" style="padding-left:${depth * 12}px">
+            <div class="nav-folder-line" data-sub-tip="${subfolderTip}">
+              <span class="tree-arrow tree-arrow-btn" ${arrowClick}>${arrow}</span>
+              <span>📁</span>
+              <span class="nav-folder-name" title="${subfolderTip}">${folder.name}</span>
+              ${sortOps}
+              <span class="nav-folder-stats">
+                <span class="nav-stat-item">${boxCount}${t('boxesUnit')}</span>
+              </span>
+              <button class="nav-more-btn" title="文件夹操作" onclick="openNavActionModal('folder','${fid}',event)">⋯</button>
+            </div>
+            <div class="nav-folder-submeta">${t('totalCapacity')} ${folderCapacity} · ${t('stored')} ${folderStored}${(() => {
+              const pct = folderCapacity ? Math.round((folderStored / folderCapacity) * 100) : 0;
+              const cls = pct === 0 ? 'empty' : (pct >= 100 ? 'full' : (pct >= 70 ? 'mid' : 'low'));
+              return `<span class="usage ${cls}">${pct}%</span>`;
+            })()}</div>
+          </div>
+        `;
+        div.onpointerdown = () => startFolderLongPress(fid);
+        div.onpointerup = cancelFolderLongPress;
+        div.onpointerleave = cancelFolderLongPress;
+        div.onclick = () => handleFolderTreeItemClick(fid, expandable);
+        list.appendChild(div);
+
+        if (!expanded) return;
+        childIds.forEach(cid => renderNode(cid, depth + 1));
+
+        folderBoxIds.forEach(bid => {
+          const b = db.boxes[bid];
+          if (!b) return;
+          const boxDiv = document.createElement('div');
+          boxDiv.className = `item tree-item ${currentBoxId === bid ? 'active' : ''}`;
+          boxDiv.style.borderLeftColor = getFolderColor(fid);
+          const sampleCount = Object.values(b.vials || {}).filter(v => v?.name).length;
+          boxDiv.classList.add('nav-box-row');
+          boxDiv.innerHTML = `
+            <div class="nav-box-top" style="padding-left:${(depth + 1) * 12}px">
+              <span class="tree-arrow">▸</span>
+              <span>📦</span>
+              <span class="nav-box-name">${b.name}</span>
+              <button class="nav-more-btn" title="容器操作" onclick="openNavActionModal('box','${bid}',event)">⋯</button>
+            </div>
+            <div class="nav-box-meta">${sampleCount}/${(Number(b.rows)||0)*(Number(b.cols)||0)} · ${t('emptySlots')} ${(Number(b.rows)||0)*(Number(b.cols)||0)-sampleCount}${(() => {
+              const cap = (Number(b.rows)||0)*(Number(b.cols)||0);
+              const pct = cap ? Math.round((sampleCount / cap) * 100) : 0;
+              const cls = pct === 0 ? 'empty' : (pct >= 100 ? 'full' : (pct >= 70 ? 'mid' : 'low'));
+              return `<span class="usage ${cls}">${pct}%</span>`;
+            })()}</div>
+          `;
+          boxDiv.onclick = () => { searchHighlightPos = null; switchBox(bid); };
+          list.appendChild(boxDiv);
+        });
+      };
+
+      (childrenMap[null] || []).forEach(fid => renderNode(fid, 0));
+    }
+
+    function renderBoxFolderStrip() {
+      const strip = document.getElementById('box-folder-strip');
+      if (!strip) return;
+      const folderIds = getOrderedFolderIds();
+      strip.innerHTML = folderIds.map(fid => {
+        const descendants = new Set(getDescendantFolderIds(fid));
+        const count = Object.values(db.boxes).filter(b => descendants.has(b.folderId)).length;
+        return `<div class="folder-chip" style="color:${getFolderColor(fid)}" onclick="setFolderFilter('${fid}')">${getFolderPathName(fid)} · ${count}</div>`;
+      }).join('');
+    }
+
+    function toggleCustomBoxSpecInputs() {
+      const spec = document.getElementById('add-box-spec');
+      const customWrap = document.getElementById('add-box-custom-wrap');
+      if (!spec || !customWrap) return;
+      customWrap.classList.toggle('hidden', spec.value !== 'custom');
+    }
+
+    function addBox() {
+      renderFolderOptions();
+      const mask = document.getElementById('add-box-modal-mask');
+      const name = document.getElementById('add-box-name');
+      const spec = document.getElementById('add-box-spec');
+      const customRows = document.getElementById('add-box-custom-rows');
+      const customCols = document.getElementById('add-box-custom-cols');
+      if (name) name.value = '';
+      if (spec) spec.value = '8,12';
+      if (customRows) customRows.value = '';
+      if (customCols) customCols.value = '';
+      toggleCustomBoxSpecInputs();
+      if (mask) mask.classList.remove('hidden');
+      setTimeout(() => name?.focus(), 30);
+    }
+
+    function closeAddBoxModal(e) {
+      if (e && e.target && e.target.id !== 'add-box-modal-mask') return;
+      const mask = document.getElementById('add-box-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function submitAddBoxModal() {
+      const name = (document.getElementById('add-box-name')?.value || '').trim();
+      if (!name) return alert('请输入容器名称。');
+      const folderId = document.getElementById('add-box-folder')?.value;
+      const specValue = document.getElementById('add-box-spec')?.value || '8,12';
+      if (!folderId || !db.folders[folderId]) return alert('请选择有效位置文件夹。');
+
+      let rows = 8;
+      let cols = 12;
+      if (specValue === 'custom') {
+        rows = Number(document.getElementById('add-box-custom-rows')?.value || 0);
+        cols = Number(document.getElementById('add-box-custom-cols')?.value || 0);
+        if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1) {
+          return alert('请输入有效的自定义行数和列数（正整数）。');
+        }
+      } else {
+        [rows, cols] = specValue.split(',').map(Number);
+      }
+
+      const id = 'box_' + Date.now();
+      db.boxes[id] = { name, rows, cols, folderId, vials: {} };
+      save();
+      closeAddBoxModal();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      switchBox(id);
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function openBoxActionModal(type, boxId, e) {
+      if (e) e.stopPropagation();
+      const box = db.boxes[boxId];
+      if (!box) return;
+      boxActionState = { type, boxId };
+
+      const mask = document.getElementById('box-action-modal-mask');
+      const title = document.getElementById('box-action-modal-title');
+      const renameWrap = document.getElementById('box-action-rename-wrap');
+      const moveWrap = document.getElementById('box-action-move-wrap');
+      const deleteWrap = document.getElementById('box-action-delete-wrap');
+      const nameInput = document.getElementById('box-action-name');
+      const folderSel = document.getElementById('box-action-folder');
+      const confirmBtn = document.getElementById('box-action-confirm-btn');
+
+      renameWrap?.classList.add('hidden');
+      moveWrap?.classList.add('hidden');
+      deleteWrap?.classList.add('hidden');
+
+      if (type === 'rename') {
+        if (title) title.textContent = t('renameBoxTitle');
+        if (confirmBtn) confirmBtn.textContent = t('saveBtn');
+        renameWrap?.classList.remove('hidden');
+        if (nameInput) nameInput.value = box.name || '';
+        setTimeout(() => nameInput?.focus(), 30);
+      } else if (type === 'move') {
+        if (title) title.textContent = t('moveBoxTitle');
+        if (confirmBtn) confirmBtn.textContent = t('moveAction');
+        moveWrap?.classList.remove('hidden');
+        if (folderSel) {
+          const options = getOrderedFolderIds().map(fid => `<option value="${fid}">${getFolderPathName(fid)}</option>`);
+          folderSel.innerHTML = options.join('');
+          folderSel.value = box.folderId;
+        }
+      } else if (type === 'delete') {
+        if (title) title.textContent = t('deleteBoxTitle');
+        if (confirmBtn) confirmBtn.textContent = t('deleteBtn');
+        deleteWrap?.classList.remove('hidden');
+      }
+
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    function closeBoxActionModal(e) {
+      if (e && e.target && e.target.id !== 'box-action-modal-mask') return;
+      const mask = document.getElementById('box-action-modal-mask');
+      if (mask) mask.classList.add('hidden');
+      boxActionState = { type: null, boxId: null };
+    }
+
+    function submitBoxActionModal() {
+      const { type, boxId } = boxActionState;
+      const box = db.boxes[boxId];
+      if (!type || !box) return closeBoxActionModal();
+
+      if (type === 'rename') {
+        const next = (document.getElementById('box-action-name')?.value || '').trim();
+        if (!next) return alert('请输入容器名称。');
+        box.name = next;
+      }
+
+      if (type === 'move') {
+        const targetId = document.getElementById('box-action-folder')?.value;
+        if (!targetId || !db.folders[targetId]) return alert('请选择有效位置文件夹。');
+        box.folderId = targetId;
+      }
+
+      if (type === 'delete') {
+        delete db.boxes[boxId];
+        if (currentBoxId === boxId) {
+          currentBoxId = null;
+          document.getElementById('grid').innerHTML = '';
+          document.getElementById('empty-tip').style.display = 'block';
+          updateBoxLocationBadge();
+        }
+        selectedPositions.clear();
+      }
+
+      save();
+      closeBoxActionModal();
+      renderFolderList();
+      renderBoxFolderStrip();
+      renderBoxList();
+      renderCollapsedNav();
+      updatePanel();
+      updateWarningBoard();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function moveBoxFolder(id, e) {
+      openBoxActionModal('move', id, e);
+    }
+
+    function deleteBox(id, e) {
+      openBoxActionModal('delete', id, e);
+    }
+
+    function renderBoxList() {
+      const list = document.getElementById('box-list');
+      if (!list) return;
+      list.innerHTML = '';
+      renderBoxFilters();
+      const lowNames = getLowInventoryNames();
+      const ids = Object.keys(db.boxes).filter(id => {
+        const b = db.boxes[id];
+        if (boxSearchKeyword && !(b.name || '').toLowerCase().includes(boxSearchKeyword)) return false;
+        if (boxFilterMode === 'low') return Object.values(b.vials || {}).some(v => v?.name && lowNames.has(v.name));
+        return true;
+      });
+
+      const renderBoxItem = (id) => {
+        const b = db.boxes[id];
+        const folderName = db.folders[b.folderId]?.name || '未分类';
+        const div = document.createElement('div');
+        div.className = `item tree-item ${currentBoxId === id ? 'active' : ''}`;
+        div.style.borderLeftColor = getFolderColor(b.folderId);
+        div.innerHTML = `
+          <div class="item-info"><span class="tree-arrow">▸</span>${b.name}<span class="item-tag">${t('boxSizeTag', { rows: b.rows, cols: b.cols })}</span>${currentFolderId === 'all' ? `<span class="item-tag">${folderName}</span>` : ''}</div>
+          <div>
+            <button class="mini-btn" title="重命名容器" onclick="openBoxActionModal('rename','${id}',event)">✎</button>
+            <button class="mini-btn" title="移动到其他文件夹" onclick="moveBoxFolder('${id}',event)">📁</button>
+            <button class="mini-btn danger" title="删除容器" onclick="deleteBox('${id}',event)">✕</button>
+          </div>
+        `;
+        div.onclick = () => { searchHighlightPos = null; switchBox(id); };
+        list.appendChild(div);
+      };
+
+      if (currentFolderId !== 'all') {
+        const allowed = new Set(getDescendantFolderIds(currentFolderId));
+        ids.filter(id => allowed.has(db.boxes[id].folderId)).forEach(renderBoxItem);
+        return;
+      }
+
+      const grouped = {};
+      ids.forEach(id => {
+        const fid = db.boxes[id].folderId || 'default';
+        if (!grouped[fid]) grouped[fid] = [];
+        grouped[fid].push(id);
+      });
+
+      getOrderedFolderIds().forEach(fid => {
+        const folderIds = grouped[fid] || [];
+        if (!folderIds.length) return;
+        const title = document.createElement('div');
+        title.className = 'box-group-title';
+        title.style.background = getFolderColor(fid);
+        title.innerHTML = `<span>${getFolderPathName(fid)}</span><span>${folderIds.length}</span>`;
+        list.appendChild(title);
+        folderIds.forEach(renderBoxItem);
+      });
+      renderCollapsedNav();
+    }
+
+    function updateBoxLocationBadge() {
+      const badge = document.getElementById('box-location-badge');
+      if (!badge) return;
+      if (!currentBoxId || !db.boxes[currentBoxId]) {
+        badge.classList.add('hidden');
+        badge.textContent = '';
+        return;
+      }
+      const box = db.boxes[currentBoxId];
+      const folderPath = getFolderPathName(box.folderId) || t('unclassified');
+      badge.textContent = t('locBadge', { folder: folderPath, box: box.name, rows: box.rows, cols: box.cols });
+      badge.classList.remove('hidden');
+    }
+
+    function switchBox(id) {
+      currentBoxId = id;
+      selectedPositions.clear();
+      document.getElementById('empty-tip').style.display = 'none';
+      updateBoxLocationBadge();
+      renderGrid();
+      renderFolderList();
+      renderCollapsedNav();
+      renderBoxList();
+      updatePanel();
+    }
+
+    function getDefaultRowLabels(count) {
+      const labels = [];
+      for (let i = 0; i < count; i++) {
+        let n = i;
+        let label = '';
+        do {
+          label = String.fromCharCode(65 + (n % 26)) + label;
+          n = Math.floor(n / 26) - 1;
+        } while (n >= 0);
+        labels.push(label);
+      }
+      return labels;
+    }
+
+    function getDisplayLayout(box) {
+      // 12x6 规格按横向展示：6行x12列（仅改变可视化，不改存储坐标）
+      if (box.rows === 12 && box.cols === 6) {
+        const rowLabels = (Array.isArray(box.rowLabels) && box.rowLabels.length === 6)
+          ? box.rowLabels
+          : getDefaultRowLabels(6);
+        const colLabels = (Array.isArray(box.colLabels) && box.colLabels.length === 12)
+          ? box.colLabels
+          : Array.from({ length: 12 }, (_, i) => String(i + 1));
+        return {
+          renderRows: 6,
+          renderCols: 12,
+          rowLabels,
+          colLabels,
+          toPos: (r, c) => `${c}-${r}`
+        };
+      }
+      const rows = Number(box.rows) || 8;
+      const cols = Number(box.cols) || 12;
+      return {
+        renderRows: rows,
+        renderCols: cols,
+        rowLabels: (Array.isArray(box.rowLabels) && box.rowLabels.length === rows)
+          ? box.rowLabels
+          : getDefaultRowLabels(rows),
+        colLabels: (Array.isArray(box.colLabels) && box.colLabels.length === cols)
+          ? box.colLabels
+          : Array.from({ length: cols }, (_, i) => String(i + 1)),
+        toPos: (r, c) => `${r}-${c}`
+      };
+    }
+
+    function updateGridZoom() {
+      const grid = document.getElementById('grid');
+      const label = document.getElementById('grid-zoom-label');
+      const slider = document.getElementById('grid-zoom-slider');
+      if (grid) {
+        grid.style.transform = `scale(${gridZoom})`;
+        grid.style.setProperty('--grid-font-scale', `${(1 / gridZoom).toFixed(4)}`);
+      }
+      if (label) label.textContent = `${Math.round(gridZoom * 100)}%`;
+      if (slider) slider.value = String(Math.round(gridZoom * 100));
+    }
+
+    function setGridZoom(next) {
+      gridZoom = Math.max(0.6, Math.min(1.8, Number(next.toFixed(2))));
+      updateGridZoom();
+    }
+
+    function handleGridZoomSlider(value) {
+      const pct = Number(value);
+      if (Number.isNaN(pct)) return;
+      setGridZoom(pct / 100);
+    }
+
+    function zoomGridIn() { setGridZoom(gridZoom + 0.1); }
+    function zoomGridOut() { setGridZoom(gridZoom - 0.1); }
+    function resetGridZoom() { setGridZoom(1); }
+
+    function initGridZoomControls() {
+      const controls = document.getElementById('grid-zoom-controls');
+      const view = document.querySelector('#grid-view .view');
+      if (!controls || !view || controls.dataset.dragReady === '1') return;
+      controls.dataset.dragReady = '1';
+
+      controls.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button, input')) return;
+        const viewRect = view.getBoundingClientRect();
+        const ctrlRect = controls.getBoundingClientRect();
+        zoomControlDragging = {
+          offsetX: e.clientX - ctrlRect.left,
+          offsetY: e.clientY - ctrlRect.top,
+          viewRect
+        };
+        controls.classList.add('dragging');
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!zoomControlDragging) return;
+        const { offsetX, offsetY, viewRect } = zoomControlDragging;
+        const left = Math.min(Math.max(e.clientX - viewRect.left - offsetX, 0), Math.max(viewRect.width - controls.offsetWidth, 0));
+        const top = Math.min(Math.max(e.clientY - viewRect.top - offsetY, 0), Math.max(viewRect.height - controls.offsetHeight, 0));
+        controls.style.left = `${left}px`;
+        controls.style.top = `${top}px`;
+        controls.style.right = 'auto';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!zoomControlDragging) return;
+        zoomControlDragging = null;
+        controls.classList.remove('dragging');
+      });
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      if (!currentBoxId || !db.boxes[currentBoxId]) return;
+
+      const box = db.boxes[currentBoxId];
+      const layout = getDisplayLayout(box);
+      grid.style.gridTemplateColumns = `repeat(${layout.renderCols + 1}, 48px)`;
+      updateGridZoom();
+
+      const corner = document.createElement('div');
+      corner.className = 'cell axis-cell';
+      corner.innerHTML = `<div class="cell-label"></div>`;
+      grid.appendChild(corner);
+
+      for (let c = 1; c <= layout.renderCols; c++) {
+        const colHead = document.createElement('div');
+        colHead.className = 'cell axis-cell';
+        colHead.innerHTML = `<div class="cell-label">${layout.colLabels[c - 1] || c}</div>`;
+        grid.appendChild(colHead);
+      }
+
+      for (let r = 1; r <= layout.renderRows; r++) {
+        const rowHead = document.createElement('div');
+        rowHead.className = 'cell axis-cell';
+        rowHead.innerHTML = `<div class="cell-label">${layout.rowLabels[r - 1] || r}</div>`;
+        grid.appendChild(rowHead);
+
+        for (let c = 1; c <= layout.renderCols; c++) {
+          const pos = layout.toPos(r, c);
+          const vial = box.vials[pos];
+          const el = document.createElement('div');
+          el.className = 'cell';
+          el.id = `cell-${pos}`;
+
+          if (vial && vial.name) {
+            el.classList.add('occupied');
+            el.style.backgroundColor = stringToHslColor(vial.name);
+            el.title = t('cellHover', { pos, name: vial.name, p: vial.p || '-', date: vial.date || '-' });
+            el.innerHTML = `<div class="cell-label">${vial.name}</div>`;
+            el.setAttribute('draggable', 'true');
+            el.addEventListener('dragstart', (e) => handleDragStart(e, pos));
+            el.addEventListener('dragend', handleDragEnd);
+          } else {
+            el.classList.add('empty');
+            el.innerHTML = `<div class="cell-label">${pos}</div>`;
+            el.addEventListener('dragover', handleDragOver);
+            el.addEventListener('dragenter', function(){ this.classList.add('drag-over'); });
+            el.addEventListener('dragleave', function(){ this.classList.remove('drag-over'); });
+            el.addEventListener('drop', (e) => handleDrop(e, pos));
+          }
+
+          if (selectedPositions.has(pos)) el.classList.add('selected');
+          if (searchHighlightPos === pos) el.classList.add('highlight');
+          el.addEventListener('click', () => { searchHighlightPos = null; toggleSelect(pos); });
+          grid.appendChild(el);
+        }
+      }
+    }
+
+    function stringToHslColor(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      return `hsl(${Math.abs(hash) % 360}, 60%, 88%)`;
+    }
+
+    function handleDragStart(e, pos) {
+      draggedItemPos = pos;
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.style.opacity = '.5';
+    }
+    function handleDragEnd(e) {
+      e.target.style.opacity = '1';
+      document.querySelectorAll('.cell').forEach(el => el.classList.remove('drag-over'));
+    }
+    function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+    function handleDrop(e, targetPos) {
+      e.stopPropagation();
+      const box = db.boxes[currentBoxId];
+      if (!box || !draggedItemPos || draggedItemPos === targetPos) return;
+      if (box.vials[targetPos]) return alert('目标位置已有样本，请先清空目标位置。');
+      box.vials[targetPos] = box.vials[draggedItemPos];
+      delete box.vials[draggedItemPos];
+      save();
+      renderGrid();
+      updateOverview();
+    }
+
+    function updateMultiSelectButton() {
+      const btn = document.getElementById('multi-select-btn');
+      if (!btn) return;
+      btn.classList.toggle('on', multiSelectMode);
+      btn.classList.toggle('off', !multiSelectMode);
+      const indicator = btn.querySelector('.switch-indicator');
+      if (indicator) indicator.textContent = multiSelectMode ? t('on') : t('off');
+    }
+
+    function toggleMultiSelectMode() {
+      multiSelectMode = !multiSelectMode;
+      updateMultiSelectButton();
+      if (!multiSelectMode && selectedPositions.size > 1) {
+        const first = [...selectedPositions][0];
+        selectedPositions.clear();
+        if (first) selectedPositions.add(first);
+        renderGrid();
+        updatePanel();
+      }
+    }
+
+    function openActionMessageModal(message, title = t('tip')) {
+      const mask = document.getElementById('action-message-modal-mask');
+      const titleEl = document.getElementById('action-message-title');
+      const contentEl = document.getElementById('action-message-content');
+      if (titleEl) titleEl.textContent = title;
+      if (contentEl) contentEl.textContent = message;
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    function closeActionMessageModal(e) {
+      if (e && e.target && e.target.id !== 'action-message-modal-mask') return;
+      const mask = document.getElementById('action-message-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function openClearConfirmModal() {
+      pendingClearSelection = [...selectedPositions];
+      pendingClearBoxId = currentBoxId;
+      const mask = document.getElementById('clear-confirm-modal-mask');
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    function closeClearConfirmModal(e) {
+      if (e && e.target && e.target.id !== 'clear-confirm-modal-mask') return;
+      const mask = document.getElementById('clear-confirm-modal-mask');
+      if (mask) mask.classList.add('hidden');
+      pendingClearSelection = [];
+      pendingClearBoxId = null;
+    }
+
+    function submitClearBatchModal() {
+      if (!pendingClearBoxId || !db.boxes[pendingClearBoxId]) return closeClearConfirmModal();
+      pendingClearSelection.forEach(pos => delete db.boxes[pendingClearBoxId].vials[pos]);
+      selectedPositions.clear();
+      save();
+      closeClearConfirmModal();
+      renderGrid();
+      updatePanel();
+      updateWarningBoard();
+      renderOverviewFolderStrip();
+      updateOverview();
+      openActionMessageModal(t('doneClear'));
+    }
+
+    function closeInventoryLocationsModal(e) {
+      if (e && e.target && e.target.id !== 'inventory-locations-modal-mask') return;
+      const mask = document.getElementById('inventory-locations-modal-mask');
+      if (mask) mask.classList.add('hidden');
+    }
+
+    function jumpToInventoryLocation(boxId, pos) {
+      closeInventoryLocationsModal();
+      if (!db.boxes[boxId]) return;
+      currentFolderId = db.boxes[boxId].folderId || 'all';
+      renderFolderList();
+      renderBoxFolderStrip();
+      searchHighlightPos = pos;
+      switchBox(boxId);
+      selectedPositions.clear();
+      selectedPositions.add(pos);
+      renderGrid();
+      updatePanel();
+      setTimeout(() => {
+        const el = document.getElementById(`cell-${pos}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    }
+
+    function formatInventoryPos(pos) {
+      if (!pos) return '-';
+      const alphaNum = String(pos).match(/^([A-Za-z]+)(\d+)$/);
+      if (alphaNum) {
+        const letters = alphaNum[1].toUpperCase();
+        let row = 0;
+        for (let i = 0; i < letters.length; i++) row = row * 26 + (letters.charCodeAt(i) - 64);
+        return t('inventoryPos', { row, col: Number(alphaNum[2]) });
+      }
+      const dashNum = String(pos).match(/^(\d+)[-_](\d+)$/);
+      if (dashNum) return t('inventoryPos', { row: Number(dashNum[1]), col: Number(dashNum[2]) });
+      return String(pos);
+    }
+
+    function openInventoryLocationsModal() {
+      if (selectedPositions.size !== 1) {
+        return openActionMessageModal(t('msgSelectOne'));
+      }
+      const name = document.getElementById('cell-name').value.trim();
+      if (!name) {
+        return openActionMessageModal(t('msgNoName'));
+      }
+      const normalized = name.toLowerCase();
+      const rows = [];
+      Object.entries(db.boxes).forEach(([boxId, box]) => {
+        Object.entries(box.vials || {}).forEach(([pos, vial]) => {
+          if ((vial?.name || '').trim().toLowerCase() !== normalized) return;
+          const folderPath = getFolderPathName(box.folderId) || t('unclassified');
+          rows.push({
+            boxId,
+            pos,
+            folderPath,
+            boxName: box.name || '-',
+            rows: box.rows || 0,
+            cols: box.cols || 0,
+            p: vial?.p || '-',
+            date: vial?.date || '-'
+          });
+        });
+      });
+      rows.sort((a, b) => (a.folderPath + a.boxName + a.pos).localeCompare(b.folderPath + b.boxName + b.pos, 'zh-CN'));
+
+      const title = document.getElementById('inventory-locations-modal-title');
+      const list = document.getElementById('inventory-locations-list');
+      const mask = document.getElementById('inventory-locations-modal-mask');
+      if (title) title.textContent = t('inventoryTitle', { name, count: rows.length });
+      if (list) {
+        list.innerHTML = rows.length
+          ? rows.map((r, idx) => `
+            <div class="inventory-location-item" data-box-id="${r.boxId}" data-pos="${r.pos}" title="${t('hoverJump')}">
+              <div class="inventory-location-main">${idx + 1}. ${r.folderPath} / ${r.boxName} / ${formatInventoryPos(r.pos)}</div>
+              <div class="inventory-location-sub">${t('inventorySpec', { rows: r.rows, cols: r.cols, p: r.p, date: r.date })}</div>
+            </div>
+          `).join('')
+          : `<div style="color:#999;text-align:center;padding:8px 0;">${t('inventoryEmpty')}</div>`;
+        list.querySelectorAll('.inventory-location-item').forEach(el => {
+          el.addEventListener('click', () => jumpToInventoryLocation(el.dataset.boxId, el.dataset.pos));
+        });
+      }
+      if (mask) mask.classList.remove('hidden');
+    }
+
+    async function copySelectedCells() {
+      if (!currentBoxId || !db.boxes[currentBoxId]) return openActionMessageModal(t('copyNeedBox'));
+      if (!selectedPositions.size) return openActionMessageModal(t('copyNeedCell'));
+      const box = db.boxes[currentBoxId];
+      const cells = [...selectedPositions].map(pos => ({ pos, ...(box.vials[pos] || {}) }));
+      const text = JSON.stringify(cells, null, 2);
+      try {
+        await navigator.clipboard.writeText(text);
+        openActionMessageModal(t('copiedMsg', { count: cells.length }));
+      } catch {
+        openActionMessageModal(t('copyFail'));
+      }
+    }
+
+    async function pasteToSelectedCells() {
+      if (!currentBoxId || !db.boxes[currentBoxId]) return openActionMessageModal(t('copyNeedBox'));
+      if (!selectedPositions.size) return openActionMessageModal(t('pasteNeedCell'));
+      let payload = [];
+      try {
+        const text = await navigator.clipboard.readText();
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed) || !parsed.length) throw new Error('empty');
+        payload = parsed.map(item => ({
+          name: item?.name || '',
+          p: item?.p || '',
+          date: item?.date || ''
+        }));
+      } catch {
+        return openActionMessageModal(t('pasteFailFormat'));
+      }
+
+      const targets = [...selectedPositions];
+      const box = db.boxes[currentBoxId];
+
+      if (payload.length === 1) {
+        targets.forEach(pos => {
+          if (payload[0].name) box.vials[pos] = { ...payload[0] };
+          else delete box.vials[pos];
+        });
+      } else if (payload.length === targets.length) {
+        targets.forEach((pos, idx) => {
+          if (payload[idx].name) box.vials[pos] = { ...payload[idx] };
+          else delete box.vials[pos];
+        });
+      } else {
+        return openActionMessageModal(t('pasteFailCount'));
+      }
+
+      save();
+      renderGrid();
+      updatePanel();
+      updateWarningBoard();
+      updateOverview();
+      openActionMessageModal(t('pastedMsg', { count: targets.length }));
+    }
+
+    function toggleSelect(pos) {
+      if (multiSelectMode) {
+        if (selectedPositions.has(pos)) selectedPositions.delete(pos);
+        else selectedPositions.add(pos);
+      } else {
+        selectedPositions.clear();
+        selectedPositions.add(pos);
+      }
+      renderGrid();
+      updatePanel();
+    }
+
+    function normalizeDateText(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      const m = raw.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+      if (!m) return raw;
+      const y = m[1];
+      const mm = String(Number(m[2])).padStart(2, '0');
+      const dd = String(Number(m[3])).padStart(2, '0');
+      return `${y}-${mm}-${dd}`;
+    }
+
+    function formatDateDisplay(value) {
+      if (!value) return '';
+      return String(value).replace(/-/g, '/');
+    }
+
+    function openDateAssistPicker() {
+      const textInput = document.getElementById('cell-date');
+      const picker = document.getElementById('cell-date-picker');
+      if (!picker) return;
+      picker.value = normalizeDateText(textInput?.value || '');
+      if (picker.showPicker) picker.showPicker();
+      else picker.click();
+    }
+
+    function onDateAssistPicked(value) {
+      const textInput = document.getElementById('cell-date');
+      if (!textInput) return;
+      textInput.value = formatDateDisplay(value || '');
+    }
+
+    function updatePanel() {
+      document.getElementById('sel-count').textContent = selectedPositions.size;
+      if (selectedPositions.size === 1 && currentBoxId) {
+        const pos = [...selectedPositions][0];
+        const data = db.boxes[currentBoxId].vials[pos] || {};
+        document.getElementById('cell-name').value = data.name || '';
+        document.getElementById('cell-p').value = data.p || '';
+        document.getElementById('cell-date').value = formatDateDisplay(data.date || '');
+      }
+      updateLiveStats();
+    }
+
+    function updateLiveStats() {
+      const key = document.getElementById('cell-name').value.trim().toLowerCase();
+      const total = document.getElementById('total-inv');
+      const stats = document.getElementById('stats');
+      if (!key) { total.textContent = '0'; stats.classList.remove('low'); return; }
+      let cnt = 0;
+      Object.values(db.boxes).forEach(b => Object.values(b.vials).forEach(v => {
+        if (v.name && v.name.toLowerCase() === key) cnt++;
+      }));
+      total.textContent = cnt;
+      if (cnt > 0 && cnt <= 3) stats.classList.add('low'); else stats.classList.remove('low');
+    }
+
+    function saveBatch() {
+      if (!currentBoxId || !selectedPositions.size) return openActionMessageModal(t('saveNeedCell'));
+      const name = document.getElementById('cell-name').value.trim();
+      if (!name) return openActionMessageModal(t('cellNameRequired'));
+
+      const payload = {
+        name,
+        p: document.getElementById('cell-p').value.trim(),
+        date: normalizeDateText(document.getElementById('cell-date').value)
+      };
+      selectedPositions.forEach(pos => { db.boxes[currentBoxId].vials[pos] = { ...payload }; });
+      selectedPositions.clear();
+      save();
+      renderGrid();
+      updatePanel();
+      updateWarningBoard();
+      renderOverviewFolderStrip();
+      updateOverview();
+    }
+
+    function clearBatch() {
+      if (!selectedPositions.size) return openActionMessageModal(t('clearNeedCell'));
+      openClearConfirmModal();
+    }
+
+    function handleGlobalSearch() {
+      const term = document.getElementById('global-search').value.trim().toLowerCase();
+      const dd = document.getElementById('search-dd');
+      if (!term) { dd.style.display = 'none'; return; }
+
+      const rows = [];
+      Object.keys(db.boxes).forEach(boxId => {
+        const box = db.boxes[boxId];
+        Object.keys(box.vials).forEach(pos => {
+          const v = box.vials[pos];
+          const n = (v.name || '').toLowerCase();
+          const p = (v.p || '').toLowerCase();
+          if (n.includes(term) || p.includes(term)) {
+            rows.push({ boxId, pos, name: v.name || '-', p: v.p || '-', boxName: box.name, folderName: db.folders[box.folderId]?.name || '-' });
+          }
+        });
+      });
+
+      dd.innerHTML = rows.length
+        ? rows.map(r => `
+          <div class="search-item" onclick="jumpTo('${r.boxId}','${r.pos}')">
+            <div><b>${r.name}</b> <span class="muted">(${r.p})</span></div>
+            <div class="loc-tag">${r.folderName}/${r.boxName} [${r.pos}]</div>
+          </div>
+        `).join('')
+        : '<div style="padding:12px;color:#999">未找到匹配样本</div>';
+      dd.style.display = 'block';
+    }
+
+    function jumpTo(boxId, pos) {
+      document.getElementById('search-dd').style.display = 'none';
+      document.getElementById('global-search').value = '';
+      currentFolderId = db.boxes[boxId].folderId || 'all';
+      renderFolderList();
+      renderBoxFolderStrip();
+      searchHighlightPos = pos;
+      switchBox(boxId);
+      setTimeout(() => {
+        const el = document.getElementById(`cell-${pos}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    }
+
+    function updateWarningBoard() {
+      const w = document.getElementById('warn-list');
+      const counts = {};
+      Object.values(db.boxes).forEach(b => Object.values(b.vials).forEach(v => {
+        if (v.name) counts[v.name] = (counts[v.name] || 0) + 1;
+      }));
+      const lows = Object.keys(counts).filter(name => counts[name] <= 3);
+      w.innerHTML = lows.length
+        ? lows.map(name => `<div style="padding:8px;display:flex;justify-content:space-between;border-bottom:1px solid #f0f0f0"><span>${name}</span><b style="color:var(--danger)">${t('msgRemain', { count: counts[name] })}</b></div>`).join('')
+        : `<div style="color:#bfbfbf;text-align:center;">${t('msgNoStock')}</div>`;
+    }
+
+    function switchView(view) {
+      document.getElementById('grid-view').style.display = view === 'grid' ? 'flex' : 'none';
+      document.getElementById('overview-view').style.display = view === 'overview' ? 'block' : 'none';
+      if (view === 'overview') { renderOverviewFolderStrip(); updateOverview(); }
+    }
+
+
+    function toggleOverviewFolder(folderId) {
+      if (collapsedOverviewFolders.has(folderId)) collapsedOverviewFolders.delete(folderId);
+      else collapsedOverviewFolders.add(folderId);
+      updateOverview();
+    }
+
+    function toggleOverviewBox(boxId) {
+      if (collapsedOverviewBoxes.has(boxId)) collapsedOverviewBoxes.delete(boxId);
+      else collapsedOverviewBoxes.add(boxId);
+      updateOverview();
+    }
+
+    function handleOverviewWheel(e) {
+      const el = document.getElementById('overview-scroll');
+      if (!el) return;
+      el.scrollTop += e.deltaY;
+    }
+
+    function updateOverview() {
+      const tree = document.getElementById('overview-tree');
+      const folderIds = currentOverviewFolderId === 'all' ? getOrderedFolderIds() : getDescendantFolderIds(currentOverviewFolderId).filter(fid => db.folders[fid]);
+      const chunks = [];
+
+      folderIds.forEach(fid => {
+        const folder = db.folders[fid];
+        const boxes = Object.keys(db.boxes)
+          .filter(boxId => db.boxes[boxId].folderId === fid)
+          .sort((a, b) => (db.boxes[a].name || '').localeCompare(db.boxes[b].name || '', 'zh-CN'));
+
+        const folderTotal = boxes.reduce((sum, boxId) => {
+          const b = db.boxes[boxId];
+          return sum + Object.values(b.vials || {}).filter(v => v && v.name).length;
+        }, 0);
+
+        const folderCollapsed = collapsedOverviewFolders.has(fid);
+        let folderBody = '<div class="ov-folder-body">';
+
+        if (!boxes.length) {
+          folderBody += `<div class="ov-empty">${t('folderNoBoxes')}</div>`;
+        } else {
+          boxes.forEach(boxId => {
+            const b = db.boxes[boxId];
+            const counts = {};
+            Object.values(b.vials || {}).forEach(v => {
+              if (!v || !v.name) return;
+              counts[v.name] = (counts[v.name] || 0) + 1;
+            });
+            const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-CN'));
+            const boxTotal = names.reduce((sum, name) => sum + counts[name], 0);
+            const boxCollapsed = collapsedOverviewBoxes.has(boxId);
+
+            let boxBody = '<div class="ov-box-body">';
+            if (!names.length) {
+              boxBody += `<div class="ov-empty">${t('boxNoSamples')}</div>`;
+            } else {
+              boxBody += '<table class="ov-items"><thead><tr><th>样本名</th><th>数量</th></tr></thead><tbody>';
+              names.forEach(name => { boxBody += `<tr><td>${name}</td><td>${counts[name]}</td></tr>`; });
+              boxBody += '</tbody></table>';
+            }
+            boxBody += '</div>';
+
+            folderBody += `
+              <div class="ov-box">
+                <div class="ov-box-head" onclick="toggleOverviewBox('${boxId}')">
+                  <div><span class="ov-arrow">${boxCollapsed ? '▶' : '▼'}</span>${b.name} <span class="ov-meta">(${b.rows}x${b.cols})</span></div>
+                  <div class="ov-meta">总计 ${boxTotal} 管</div>
+                </div>
+                ${boxCollapsed ? '' : boxBody}
+              </div>
+            `;
+          });
+        }
+
+        folderBody += '</div>';
+        chunks.push(`
+          <div class="ov-folder" style="border-left:4px solid ${getFolderColor(fid)}">
+            <div class="ov-folder-head" onclick="toggleOverviewFolder('${fid}')">
+              <div><span class="ov-arrow">${folderCollapsed ? '▶' : '▼'}</span>${folder.name}</div>
+              <div class="ov-meta">${t('ovContainer')} ${boxes.length} | ${t('ovSample')} ${folderTotal}</div>
+            </div>
+            ${folderCollapsed ? '' : folderBody}
+          </div>
+        `);
+      });
+
+      tree.innerHTML = chunks.length ? chunks.join('') : '<div class="ov-empty">暂无数据</div>';
+    }
+
+    function exportExcel() {
+      if (typeof XLSX === 'undefined') {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' }));
+        a.download = `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+      const boxIds = Object.keys(db.boxes);
+      if (!boxIds.length) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['暂无数据']]), '空数据');
+        XLSX.writeFile(wb, `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+        return;
+      }
+
+      boxIds.forEach((boxId, idx) => {
+        const b = db.boxes[boxId];
+        const folderName = db.folders[b.folderId]?.name || '未分类';
+        const layout = getDisplayLayout(b);
+
+        const aoa = [];
+        aoa.push([`文件夹: ${folderName}`, `容器: ${b.name}`, `规格: ${b.rows}x${b.cols}`]);
+
+        const header = ['行\列'];
+        for (let c = 1; c <= layout.renderCols; c++) header.push(layout.colLabels[c - 1] || `C${c}`);
+        aoa.push(header);
+
+        for (let r = 1; r <= layout.renderRows; r++) {
+          const row = [layout.rowLabels[r - 1] || `R${r}`];
+          for (let c = 1; c <= layout.renderCols; c++) {
+            const pos = layout.toPos(r, c);
+            const v = b.vials[pos];
+            row.push(v?.name ? `${v.name}${v.p ? ` (${v.p})` : ''}` : '');
+          }
+          aoa.push(row);
+        }
+
+        const sheet = XLSX.utils.aoa_to_sheet(aoa);
+        sheet['!cols'] = Array(layout.renderCols + 1).fill({ wch: 14 });
+        const safeName = `${String(idx + 1).padStart(2, '0')}_${b.name}`.slice(0, 31);
+        XLSX.utils.book_append_sheet(wb, sheet, safeName || `容器${idx + 1}`);
+      });
+
+      XLSX.writeFile(wb, `Cell_Storage_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    function exportJSON() {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type: 'application/json' }));
+      a.download = `Cell_Storage_Backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    function triggerImport() { document.getElementById('import-file').click(); }
+
+    function importJSON(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          const normalized = coerceBackupData(data);
+          if (!normalized) return alert('文件格式错误，不是有效备份。');
+          db = normalized;
+          normalizeData();
+          save();
+          currentBoxId = null;
+          selectedPositions.clear();
+          renderFolderOptions();
+          renderFolderList();
+          renderBoxFolderStrip();
+          renderBoxList();
+          renderGrid();
+          renderOverviewFolderStrip();
+          updatePanel();
+          updateWarningBoard();
+          updateOverview();
+          alert('导入成功！');
+        } catch {
+          alert('导入失败，文件可能已损坏。');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.search-wrap')) document.getElementById('search-dd').style.display = 'none';
+    });
+
+    init();
+  </script>
+</body>
+</html>
